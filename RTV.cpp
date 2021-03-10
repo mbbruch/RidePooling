@@ -450,7 +450,6 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
 
     std::string part1 = std::to_string(model.get(GRB_IntAttr_Status));
     std::string part2 = std::to_string((int)std::round(model.get(GRB_DoubleAttr_Runtime)));
-//    std::rename(std::string(grbLogName + ".txt").c_str(), std::string(grbLogName + "_" + part1 + "_" + part2 + ".txt").c_str());
 
     for (int i = 0; i < idleCnt; i++) {
         for (int j = 0; j < unservedCnt; j++) {
