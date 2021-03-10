@@ -77,8 +77,6 @@ bool RTVGraph::TIdxComparable::operator<(const TIdxComparable& other) const {
 
 
 int RTVGraph::getTIdx(const uos& trip) {
-//#pragma omp critical (addetv1)
-//    {
     auto iter = trip_tIdx.find(trip);
     if (iter != trip_tIdx.end()) {
         return iter->second;
@@ -95,7 +93,6 @@ int RTVGraph::getTIdx(const uos& trip) {
         iterRIdx++;
     }
     return numTrips++;
-//    }
 }
 
 void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, map_of_pairs& dist) {
