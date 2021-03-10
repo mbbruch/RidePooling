@@ -31,6 +31,22 @@
 *.out
 *.app
 
+#Data
+*.data
+*.co
+*.edge
+*.csv
+
+# Misc
+*.vcxproj.user
+*.txt
+*.vcxproj
+*.vcxproj.filters
+*.sln
+*.json
+*.editorconfig
+
+# Folders
 In/
 Out/
 .git/
