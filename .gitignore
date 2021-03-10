@@ -33,6 +33,8 @@
 
 #Data
 *.data
+*.data2
+*.data3
 *.co
 *.edge
 *.csv
@@ -45,6 +47,21 @@
 *.sln
 *.json
 *.editorconfig
+*.suo
+*.db
+*.ipch
+*.suo
+*log
+*build*
+*build
+*.pdb
+*Copy*
+*11142020*
+*.obj*
+*.recipe
+*.exe*
+*.ilk
+*.enc
 
 # Folders
 In/
