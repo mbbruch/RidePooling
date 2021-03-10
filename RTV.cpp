@@ -20,7 +20,7 @@
 #include "util.h"
 using namespace std;
 
-RTVGraph* RTVGraph::TIdxComparable::rtvGraph; //test6sa
+RTVGraph* RTVGraph::TIdxComparable::rtvGraph;
 
 bool equal_to_sub(vector<int>& compared, vector<int>& origin, int excludeIdx) {
     auto iterCompared = compared.begin();
