@@ -62,6 +62,9 @@
 *.exe*
 *.ilk
 *.enc
+*.sqlite
+*.idb
+
 
 # Folders
 In/
