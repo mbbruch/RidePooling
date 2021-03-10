@@ -62,20 +62,17 @@ void RTVGraph::add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost) {
 }
 
 bool RTVGraph::TIdxComparable::operator<(const TIdxComparable& other) const {
-//#pragma omp critical (addetv1)
-//    {
-        int size1 = rtvGraph->trips[tIdx].size();
-        int size2 = rtvGraph->trips[other.tIdx].size();
-        if (size1 > size2) {
-            return true;
-        }
-        else if (size1 == size2) {
-            return tIdx < other.tIdx;
-        }
-        else {
-            return false;
-        }
-//    }
+	int size1 = rtvGraph->trips[tIdx].size();
+	int size2 = rtvGraph->trips[other.tIdx].size();
+	if (size1 > size2) {
+		return true;
+	}
+	else if (size1 == size2) {
+		return tIdx < other.tIdx;
+	}
+	else {
+		return false;
+	}
 }
 
 
