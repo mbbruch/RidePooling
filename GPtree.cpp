@@ -26,15 +26,15 @@ const bool DEBUG_ = false;
 const bool Optimization_G_tree_Search = true;//Whether to enable full connection acceleration algorithm
 const bool Optimization_KNN_Cut = true;//Whether to enable the KNN pruning query algorithm
 const bool Optimization_Euclidean_Cut = false;//Whether to enable pruning algorithm based on Euclidean distance in cache query
-const char Edge_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/chicago.edge";// In the first line, two integers n, m represent the number of points and edges, 
+const char Edge_File[] = "C:/Code_Projects/RidePooling/austin.edge";// In the first line, two integers n, m represent the number of points and edges, 
 									//and in the next m lines, three integers U, V, C represent U->V has an edge of length C
-const char Node_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/chicago.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
+const char Node_File[] = "C:/Code_Projects/RidePooling/austin.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
 									//of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
 
-const char ST_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/s_t_for_map.csv";
-const char GPTree_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/GP_Tree_chicago.data";
-const char DistMap_FileShort[] = "dist_map_chicago.data";
-const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/dist_map_chicago.data";
+const char ST_File[] = "C:/Code_Projects/RidePooling/s_t_for_austin.csv";
+const char GPTree_File[] = "C:/Code_Projects/RidePooling/GP_Tree.data";
+const char DistMap_FileShort[] = "dist_map.data";
+const char DistMap_File[] = "C:/Code_Projects/RidePooling/dist_map.data";
 const int Global_Scheduling_Cars_Per_Request = 30000000;//Each plan accurately counts up to the number of vehicles reserved(time overhead)
 const double Unit = 0.1;//路网文件的单位长度/m
 const double R_earth = 6371000.0;//地球半径，用于输入经纬度转化为x,y坐标
@@ -170,7 +170,7 @@ void save_map_intpair_int(map_of_pairs& h, FILE* out)
 {
 	fprintf(out, "%d\n", h.size());
 	for (auto iter = h.begin(); iter != h.end(); iter++)
-		fprintf(out, "%d %d %d\n", iter->first.first, iter->first.first, iter->second);
+		fprintf(out, "%d %d %d\n", iter->first.first, iter->first.second, iter->second);
 }
 void load_map_intpair_int(map_of_pairs& h)
 {
@@ -197,15 +197,12 @@ void save_dist_map(map_of_pairs& dist_map) {
 
 void load_dist_map(map_of_pairs& dist_map)
 {
-	//system(("cp /ocean/projects/eng200002p/mbruchon/Pooling/In/dist_map_chicago.data $RAMDISK").c_str()); 
-	//FILE* in = freopen(std::string(getenv("$RAMDISK") + std::string(DistMap_FileShort)).c_str(), "r", stdin);
 	FILE* in = fopen(DistMap_File, "r");
 	load_map_intpair_int(dist_map);
-	
-	//dist_map.rehash(1.5*dist_map.size());
 	fclose(in);
-	//fclose(stdin);
 }
+
+
 
 struct coor { coor(double a = 0.0, double b = 0.0) :x(a), y(b) {}double x, y; };
 vector<coor>coordinate;
@@ -248,7 +245,7 @@ double Euclidean_Dist_LatLong(int S, int T)// Calculate the length of the Euclid
 //	printf("S: %d, T: %d\n", S, T);
 	double toReturn =  round(Distance_(coordinate[S].x, coordinate[S].y, coordinate[T].x, coordinate[T].y));
 
-//	printf("S: %d, T: %d, distance: %f\n", S, T, toReturn);
+	printf("S: %d, T: %d, distance: %f\n", S, T, toReturn);
 	return toReturn;
 }
 
@@ -540,9 +537,7 @@ void save()
 	printf("begin save\n");
 	freopen(GPTree_File, "w", stdout);
 	tree.save();
-	printf("testing2\n");
-	fclose(stdout);
-	freopen("/dev/tty", "w", stdout);
+//	freopen("/dev/tty", "w", stdout);
 	printf("save_over\n");
 }
 void load()
@@ -593,7 +588,7 @@ void init_dist_map(map_of_pairs& dist_map)
 		nodes.push_back(j);
 	}
 	fclose(in);
-	
+
 	dist_map.clear();
 	dist_map.reserve(size * (size - 1) / 2);
 	int this_s, this_t;
@@ -604,7 +599,7 @@ void init_dist_map(map_of_pairs& dist_map)
 			dist_map[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
 		}
 	}
-	dist_map.rehash(1.5 * (max_node* (max_node- 1) / 2));
+	dist_map.rehash(1.5 * (nodes.size() * (nodes.size() - 1) / 2));
 	save_dist_map(dist_map);
 }
 
@@ -620,9 +615,6 @@ int find_path(int S, int T, vector<int> &order) {
 	return tree.find_path(S, T, order);
 }
 
-//void reset_dist_map(){
-//	dist_map.clear();
-//}
 //TODO: this assume distances are the same in both directions
 int get_dist(int S, int T, map_of_pairs& dist, bool simplestCheck) {
 	pair<int, int> st;
@@ -641,7 +633,6 @@ int get_dist(int S, int T, map_of_pairs& dist, bool simplestCheck) {
 		return search_cache(S - 1, T - 1);
 	}
 }
-
 
 Heap::Heap() { clear(); }
 
@@ -1012,7 +1003,7 @@ vector<int> Graph::Split_Naive(Graph& G1, Graph& G2)//将子图一分为二返�
 		for (i = 0; i<n; i++)
 			for (j = head[i]; j; j = next[j])
 				if (color[i] != color[list[j]]) { border_num++; break; }
-		printf("边连通度ans=%d border_number=%d\n", ans, border_num);
+		printf("ans=%d border_number=%d\n", ans, border_num);
 	}
 	//for(i=0;i<n;i++)cout<<"i="<<i<<" color="<<color[i]<<endl;
 
@@ -1291,7 +1282,6 @@ void G_Tree::save()
 		printf("\n");
 		node[i].save();
 	}
-	printf("testing.\n");
 }
 
 void G_Tree::load()

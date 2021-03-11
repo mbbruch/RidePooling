@@ -22,38 +22,27 @@ using namespace std;
 
 int main(int argc, char* argv[]) {
 
-    char* reqFile = (char *)"/ocean/projects/eng200002p/mbruchon/Pooling/In/requests_chicago.csv";//argv[1];
-    char* vehFile = (char *)"/ocean/projects/eng200002p/mbruchon/Pooling/In/vehicles_chicago.csv";//argv[2];
+    char* reqFile = "C:/Code_Projects/RidePooling/requests.csv";//argv[1];
+    char* vehFile = "C:/Code_Projects/RidePooling/vehicles.csv";//argv[2];
     std::string filenameTime = GetCurrentTimeForFileName();
-    outDir = "/ocean/projects/eng200002p/mbruchon/Pooling/Out/" + filenameTime + "/";
+    outDir = "C:/Code_Projects/RidePooling/" + filenameTime + "/";
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
-	logFile = "logfile_" + filenameTime + ".txt";//argv[3];
+   logFile = "logfile_" + filenameTime + ".txt";//argv[3];
     setupOutfiles(outDir, outFilename);
     //max_capacity = atoi(argv[4]);
-	map_of_pairs dist;
-		
-    print_line(outDir,logFile,"Initializing GRBEnv");
+    map_of_pairs dist;
+
+	print_line(outDir,logFile,"Initializing GRBEnv");
     GRBEnv *env = new GRBEnv();
     env->set(GRB_IntParam_OutputFlag, 0);
-    env->set(GRB_IntParam_Threads, omp_get_max_threads());
+    env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
     total_dist = unserved_dist = raw_dist = 0;
-    total_wait_time = 0; 
+    total_wait_time = 0;
     dist_map_size = 0;
     disconnectedCars = 0;
 	
-		
-    omp_set_num_threads(omp_get_max_threads());
-	#pragma omp parallel
-	{
-		int max =  omp_get_max_threads();
-		int num = omp_get_num_threads();
-		print_line(outDir,logFile,string_format("Max threads: %d, Num threads: %d",max,num));
-	}
-		
-
-  //  while ((getchar()) != '\n');
 	print_line(outDir,logFile,"Start initializing");
     initialize(false, dist);
     print_line(outDir,logFile,"load_end");
@@ -63,7 +52,7 @@ int main(int argc, char* argv[]) {
     read_vehicles(vehFile, vehicles);
 
     vector<Request> requests;
-    requests.reserve(1500);
+    requests.reserve(100);
 
     bool hasMore = false;
     Request tail;
@@ -105,7 +94,7 @@ int main(int argc, char* argv[]) {
 
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Preprocessing time = %f", elapsed_seconds.count()));
-
+		
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests, dist);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
@@ -125,7 +114,7 @@ int main(int argc, char* argv[]) {
         RTV->rebalance(env, vehicles, unserved, dist);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Rebalancing time = %f", elapsed_seconds.count()));
-
+		
         delete RV;
         delete RTV;
 

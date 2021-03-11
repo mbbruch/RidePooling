@@ -124,7 +124,7 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
     std::filesystem::create_directories(outDir + "GurobiLogs/");
     std::filesystem::create_directories(outDir + "Code/");
 	//std::filesystem::copy("/ocean/projects/eng200002p/mbruchon/Pooling", outDir + "Code/");
-	system(("cp -p /ocean/projects/eng200002p/mbruchon/Pooling/*.* " + outDir + "Code/").c_str());
+	//system(("cp -p /ocean/projects/eng200002p/mbruchon/Pooling/*.* " + outDir + "Code/").c_str());
     std::ofstream ofs;
     ofs.open(outDir + outFilename, std::ofstream::out | std::ofstream::app);
     ofs << "NowTime,CPUTime,TotalReqs,ServedReqs,TotalDist,UnservedDist,RawDist,WaitTime,Pooled1,Pooled2,Pooled3,Pooled4,DisconnectedCars\n";
