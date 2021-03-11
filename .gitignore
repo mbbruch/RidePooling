@@ -71,3 +71,6 @@ In/
 Out/
 .git/
 Code/
+*.db-shm
+*.db-wal
+*.opendb

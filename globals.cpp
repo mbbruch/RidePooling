@@ -17,6 +17,7 @@ int max_vehicle;
 int dist_map_size;
 
 std::string outDir;
+std::string logFile;
 
 extern const int time_step = 60*15;
 extern const int max_node = 26218; //264346;

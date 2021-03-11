@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <sstream>
 #include <omp.h>
+#include <cstring>
 #include "gurobi_c++.h"
 
 #include "globals.h"

@@ -1,3 +1,4 @@
+#define _HAS_STD_BYTE 0
 #include <map>
 #include <unordered_set>
 #include "util.h"
@@ -484,7 +485,7 @@ void RTVGraph::sort_edges() {
 		if (iter != tIdx_vCostIdxes.end()) {
 			sort(iter->second.begin(), iter->second.end());
 		}
-		iter->second.resize(std::min(static_cast<int>(iter->second.size()),max_v_per_req));
+		iter->second.resize(min(static_cast<int>(iter->second.size()),max_v_per_req));
 	}
 	elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
 	print_line(outDir,logFile,string_format("tIdx_vCostIdxes sorting time = %f.", elapsed_seconds.count()));
@@ -493,7 +494,7 @@ void RTVGraph::sort_edges() {
 	#pragma omp parallel for private(i)
 	for (i = 0; i < vIdx_tIdxes.size(); i++) {
 		sort(vIdx_tIdxes[i].begin(), vIdx_tIdxes[i].begin());
-		vIdx_tIdxes[i].resize(std::min(static_cast<int>(vIdx_tIdxes[i].size()),min_req_per_v));
+		vIdx_tIdxes[i].resize(min(static_cast<int>(vIdx_tIdxes[i].size()),min_req_per_v));
 	}
 	elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
 	print_line(outDir,logFile,string_format("vIdx_tIdxes sorting time = %f.", elapsed_seconds.count()));
