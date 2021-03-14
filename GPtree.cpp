@@ -563,7 +563,7 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("load from cache")
 		load();
-		load_dist_map(dist);
+		//load_dist_map(dist);
 	}else{
 		//TIME_TICK_START
 		init();
@@ -571,7 +571,7 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		Additional_Memory = 2 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		tree.build();
-		init_dist_map(dist);
+		//init_dist_map(dist);
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("build from scratch")
 		save();
