@@ -445,6 +445,7 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
     model.set("TimeLimit", "300.0");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
+	model.set("NodeFileStart","1.0");
     std::string grbLogName = outDir + "GurobiLogs/" + "rebalance_" + std::to_string(now_time);
     model.set("LogFile", grbLogName + ".txt");
     model.optimize();
@@ -660,6 +661,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
 	model.set("Method","4");
+	model.set("NodeFileStart","1.0");
 	//model.set("Presolve","1");
 	//model.set("VarBranch","3");
 	//model.set("MIPFocus","3");

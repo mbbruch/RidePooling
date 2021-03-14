@@ -43,7 +43,8 @@ int main(int argc, char* argv[]) {
     total_wait_time = 0;
     dist_map_size = 0;
     disconnectedCars = 0;
-	
+
+  //  while ((getchar()) != '\n');
 	print_line(outDir,logFile,"Start initializing");
     initialize(false, dist);
     print_line(outDir,logFile,"load_end");
