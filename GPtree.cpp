@@ -170,7 +170,7 @@ void save_map_intpair_int(map_of_pairs& h, FILE* out)
 {
 	fprintf(out, "%d\n", h.size());
 	for (auto iter = h.begin(); iter != h.end(); iter++)
-		fprintf(out, "%d %d %d\n", iter->first.first, iter->first.first, iter->second);
+		fprintf(out, "%d %d %d\n", iter->first.first, iter->first.second, iter->second);
 }
 void load_map_intpair_int(map_of_pairs& h)
 {
