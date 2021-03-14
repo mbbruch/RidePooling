@@ -26,15 +26,15 @@ const bool DEBUG_ = false;
 const bool Optimization_G_tree_Search = true;//Whether to enable full connection acceleration algorithm
 const bool Optimization_KNN_Cut = true;//Whether to enable the KNN pruning query algorithm
 const bool Optimization_Euclidean_Cut = false;//Whether to enable pruning algorithm based on Euclidean distance in cache query
-const char Edge_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/chicago.edge";// In the first line, two integers n, m represent the number of points and edges, 
+const char Edge_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/chicago.edge";// In the first line, two integers n, m represent the number of points and edges, 
 									//and in the next m lines, three integers U, V, C represent U->V has an edge of length C
-const char Node_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/chicago.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
+const char Node_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/chicago.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
 									//of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
 
-const char ST_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/s_t_for_map.csv";
-const char GPTree_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/GP_Tree_chicago.data";
+const char ST_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/s_t_for_map.csv";
+const char GPTree_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/GP_Tree_chicago.data";
 const char DistMap_FileShort[] = "dist_map_chicago.data";
-const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/dist_map_chicago.data";
+const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/dist_map_chicago.data";
 const int Global_Scheduling_Cars_Per_Request = 30000000;//Each plan accurately counts up to the number of vehicles reserved(time overhead)
 const double Unit = 0.1;//路网文件的单位长度/m
 const double R_earth = 6371000.0;//地球半径，用于输入经纬度转化为x,y坐标
