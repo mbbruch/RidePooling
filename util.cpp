@@ -95,15 +95,8 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
 
 void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests,
     int nowTime, map_of_pairs& dist) {
-    
-    int idx = 0;
     for (auto it = vehicles.begin(); it != vehicles.end(); it++) {
-        // printf("V #%d: ", idx++);
-        if (idx == 2 & nowTime > 43000) {
-            int x = 5;
-        }
         it->update(nowTime, requests, dist);
-        idx++;
     }
 }
 

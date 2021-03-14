@@ -558,7 +558,7 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("load from cache")
 		load();
-		load_dist_map(dist);
+//		load_dist_map(dist);
 	}else{
 		//TIME_TICK_START
 		init();
@@ -566,7 +566,7 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		Additional_Memory = 2 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		tree.build();
-		init_dist_map(dist);
+//		init_dist_map(dist);
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("build from scratch")
 		save();
@@ -591,16 +591,52 @@ void init_dist_map(map_of_pairs& dist_map)
 
 	dist_map.clear();
 	dist_map.reserve(size * (size - 1) / 2);
+	dist_map.rehash(1.0 * (nodes.size() * (nodes.size() - 1) / 2));
 	int this_s, this_t;
-	for (int s = 1; s <= size; s++) {
+	for (int s = 0; s < size; s++) {
 		this_s = nodes[s];
-		for (int t = s + 1; t <= size; t++) {
+		for (int t = s + 1; t < size; t++) {
 			this_t = nodes[t];
 			dist_map[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
 		}
 	}
-	dist_map.rehash(1.5 * (nodes.size() * (nodes.size() - 1) / 2));
+	dist_map.rehash(1.0 * (nodes.size() * (nodes.size() - 1) / 2));
 	save_dist_map(dist_map);
+}
+
+map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
+	const set<int>& allToAll1, const set<int>& allToAll2) {
+	map_of_pairs mop{ ongoingLocs.size() +
+		(allToAll1.size() * (allToAll1.size() - 1) / 2) +
+		(allToAll2.size() * (allToAll2.size() - 1) / 2) };
+
+	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
+		if ((*it).first == (*it).second) continue;
+		if ((*it).first < (*it).second) {
+			mop[pair<int, int>{(*it).first, (*it).second}] = tree.search_cache((*it).first - 1, (*it).second - 1);
+		}
+		else {
+			mop[pair<int, int>{(*it).second, (*it).first}] = tree.search_cache((*it).second - 1, (*it).first - 1);
+		}
+	}
+	vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
+	for (int i = 0; i < vec1.size(); i++) {
+		int this_s = vec1[i];
+		for (int j = i + 1; j < vec1.size(); j++) {
+			int this_t = vec1[j];
+			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+		}
+	}
+	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
+	for (int i = 0; i < vec2.size(); i++) {
+		int this_s = vec2[i];
+		for (int j = i + 1; j < vec2.size(); j++) {
+			int this_t = vec2[j];
+			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+		}
+	}
+	mop.rehash(mop.size());
+	return mop;
 }
 
 int search(int s,int t) {

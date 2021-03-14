@@ -14,10 +14,10 @@ class Vehicle {
     int location, timeToNextNode;
     bool available;
     int availableSince;
-    vector<Request> passengers;
     queue<pair<int, int> > scheduledPath;
 
 public:
+    vector<Request> passengers;
     Vehicle();
     Vehicle(int location);
     bool isAvailable();

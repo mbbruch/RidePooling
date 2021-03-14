@@ -64,7 +64,6 @@ int main(int argc, char* argv[]) {
     fclose(in);
     in = get_requests_file(reqFile);
 
-  
     while (true) {
 		auto beforeTime = std::chrono::system_clock::now();
         utilization.clear();
@@ -95,7 +94,33 @@ int main(int argc, char* argv[]) {
 
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Preprocessing time = %f", elapsed_seconds.count()));
-		
+
+        //one-to-one: vehicle locations + ongoing request locations
+        //all-to-all 1: vehicle locations + new request locations (start points only)
+        //all-to-all 2: ongoing request locations + new requestion locations
+        std::set<std::pair<int, int>> ongoingLocs;
+        std::set<int> allToAll1;
+        std::set<int> allToAll2;
+        map_of_pairs dist;
+        for (int i = 0; i < vehicles.size(); i++) {
+            const int vehLoc = vehicles[i].get_location();
+            allToAll1.emplace(vehLoc);
+            for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
+                ongoingLocs.emplace(std::pair{ vehLoc, vehicles[i].passengers[j].start });
+                ongoingLocs.emplace(std::pair{ vehLoc, vehicles[i].passengers[j].end });
+                ongoingLocs.emplace(std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end });
+                allToAll2.emplace(vehicles[i].passengers[j].start);
+                allToAll2.emplace(vehicles[i].passengers[j].end);
+            }
+        }
+        for (int i = 0; i < requests.size(); i++) {
+            allToAll1.emplace(requests[i].start);
+            allToAll2.emplace(requests[i].start);
+            allToAll2.emplace(requests[i].end);
+        }
+        dist = reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2);
+
+        print_line(outDir, logFile, string_format("Dist map size = %f", dist.size()));
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests, dist);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
