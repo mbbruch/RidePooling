@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
     disconnectedCars = 0;
 	
 		
-    omp_set_num_threads(omp_get_max_threads());
+    omp_set_num_threads(6);
 	#pragma omp parallel
 	{
 		int max =  omp_get_max_threads();
