@@ -197,15 +197,12 @@ void save_dist_map(map_of_pairs& dist_map) {
 
 void load_dist_map(map_of_pairs& dist_map)
 {
-	//system(("cp /ocean/projects/eng200002p/mbruchon/Pooling/In/dist_map_chicago.data $RAMDISK").c_str()); 
-	//FILE* in = freopen(std::string(getenv("$RAMDISK") + std::string(DistMap_FileShort)).c_str(), "r", stdin);
 	FILE* in = fopen(DistMap_File, "r");
 	load_map_intpair_int(dist_map);
-	
-	//dist_map.rehash(1.5*dist_map.size());
 	fclose(in);
-	//fclose(stdin);
 }
+
+
 
 struct coor { coor(double a = 0.0, double b = 0.0) :x(a), y(b) {}double x, y; };
 vector<coor>coordinate;
@@ -248,7 +245,7 @@ double Euclidean_Dist_LatLong(int S, int T)// Calculate the length of the Euclid
 //	printf("S: %d, T: %d\n", S, T);
 	double toReturn =  round(Distance_(coordinate[S].x, coordinate[S].y, coordinate[T].x, coordinate[T].y));
 
-//	printf("S: %d, T: %d, distance: %f\n", S, T, toReturn);
+	printf("S: %d, T: %d, distance: %f\n", S, T, toReturn);
 	return toReturn;
 }
 
@@ -540,9 +537,7 @@ void save()
 	printf("begin save\n");
 	freopen(GPTree_File, "w", stdout);
 	tree.save();
-	printf("testing2\n");
-	fclose(stdout);
-	freopen("/dev/tty", "w", stdout);
+//	freopen("/dev/tty", "w", stdout);
 	printf("save_over\n");
 }
 void load()
@@ -563,7 +558,6 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("load from cache")
 		load();
-		//load_dist_map(dist);
 	}else{
 		//TIME_TICK_START
 		init();
@@ -571,7 +565,6 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		Additional_Memory = 2 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		tree.build();
-		//init_dist_map(dist);
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("build from scratch")
 		save();
@@ -593,19 +586,55 @@ void init_dist_map(map_of_pairs& dist_map)
 		nodes.push_back(j);
 	}
 	fclose(in);
-	
+
 	dist_map.clear();
 	dist_map.reserve(size * (size - 1) / 2);
+	dist_map.rehash(1.0 * (nodes.size() * (nodes.size() - 1) / 2));
 	int this_s, this_t;
-	for (int s = 1; s <= size; s++) {
+	for (int s = 0; s < size; s++) {
 		this_s = nodes[s];
-		for (int t = s + 1; t <= size; t++) {
+		for (int t = s + 1; t < size; t++) {
 			this_t = nodes[t];
 			dist_map[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
 		}
 	}
-	dist_map.rehash(1.5 * (max_node* (max_node- 1) / 2));
+	dist_map.rehash(1.0 * (nodes.size() * (nodes.size() - 1) / 2));
 	save_dist_map(dist_map);
+}
+
+map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
+	const set<int>& allToAll1, const set<int>& allToAll2) {
+	map_of_pairs mop{ ongoingLocs.size() +
+		(allToAll1.size() * (allToAll1.size() - 1) / 2) +
+		(allToAll2.size() * (allToAll2.size() - 1) / 2) };
+
+	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
+		if ((*it).first == (*it).second) continue;
+		if ((*it).first < (*it).second) {
+			mop[pair<int, int>{(*it).first, (*it).second}] = tree.search_cache((*it).first - 1, (*it).second - 1);
+		}
+		else {
+			mop[pair<int, int>{(*it).second, (*it).first}] = tree.search_cache((*it).second - 1, (*it).first - 1);
+		}
+	}
+	vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
+	for (int i = 0; i < vec1.size(); i++) {
+		int this_s = vec1[i];
+		for (int j = i + 1; j < vec1.size(); j++) {
+			int this_t = vec1[j];
+			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+		}
+	}
+	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
+	for (int i = 0; i < vec2.size(); i++) {
+		int this_s = vec2[i];
+		for (int j = i + 1; j < vec2.size(); j++) {
+			int this_t = vec2[j];
+			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+		}
+	}
+	mop.rehash(mop.size());
+	return mop;
 }
 
 int search(int s,int t) {
@@ -620,9 +649,6 @@ int find_path(int S, int T, vector<int> &order) {
 	return tree.find_path(S, T, order);
 }
 
-//void reset_dist_map(){
-//	dist_map.clear();
-//}
 //TODO: this assume distances are the same in both directions
 int get_dist(int S, int T, map_of_pairs& dist, bool simplestCheck) {
 	pair<int, int> st;
@@ -641,7 +667,6 @@ int get_dist(int S, int T, map_of_pairs& dist, bool simplestCheck) {
 		return search_cache(S - 1, T - 1);
 	}
 }
-
 
 Heap::Heap() { clear(); }
 
@@ -1012,7 +1037,7 @@ vector<int> Graph::Split_Naive(Graph& G1, Graph& G2)//将子图一分为二返�
 		for (i = 0; i<n; i++)
 			for (j = head[i]; j; j = next[j])
 				if (color[i] != color[list[j]]) { border_num++; break; }
-		printf("边连通度ans=%d border_number=%d\n", ans, border_num);
+		printf("ans=%d border_number=%d\n", ans, border_num);
 	}
 	//for(i=0;i<n;i++)cout<<"i="<<i<<" color="<<color[i]<<endl;
 
@@ -1291,7 +1316,6 @@ void G_Tree::save()
 		printf("\n");
 		node[i].save();
 	}
-	printf("testing.\n");
 }
 
 void G_Tree::load()

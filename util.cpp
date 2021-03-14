@@ -95,15 +95,8 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
 
 void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests,
     int nowTime, map_of_pairs& dist) {
-    
-    int idx = 0;
     for (auto it = vehicles.begin(); it != vehicles.end(); it++) {
-        // printf("V #%d: ", idx++);
-        if (idx == 2 & nowTime > 43000) {
-            int x = 5;
-        }
         it->update(nowTime, requests, dist);
-        idx++;
     }
 }
 
@@ -124,7 +117,7 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
     std::filesystem::create_directories(outDir + "GurobiLogs/");
     std::filesystem::create_directories(outDir + "Code/");
 	//std::filesystem::copy("/ocean/projects/eng200002p/mbruchon/Pooling", outDir + "Code/");
-	system(("cp -p /ocean/projects/eng200002p/mbruchon/Pooling/*.* " + outDir + "Code/").c_str());
+	//system(("cp -p /ocean/projects/eng200002p/mbruchon/Pooling/*.* " + outDir + "Code/").c_str());
     std::ofstream ofs;
     ofs.open(outDir + outFilename, std::ofstream::out | std::ofstream::app);
     ofs << "NowTime,CPUTime,TotalReqs,ServedReqs,TotalDist,UnservedDist,RawDist,WaitTime,Pooled1,Pooled2,Pooled3,Pooled4,DisconnectedCars\n";

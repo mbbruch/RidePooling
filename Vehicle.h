@@ -8,16 +8,16 @@
 #include <set>
 #include "Request.h"
 
-using namespace std; //readd comment
+using namespace std; 
 
 class Vehicle {
     int location, timeToNextNode;
     bool available;
     int availableSince;
-    vector<Request> passengers;
     queue<pair<int, int> > scheduledPath;
 
 public:
+    vector<Request> passengers;
     Vehicle();
     Vehicle(int location);
     bool isAvailable();
