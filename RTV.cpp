@@ -364,6 +364,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
         allPotentialTrips.push_back(vector<tripCandidate>{});
     }
 
+    omp_set_num_threads(omp_get_max_threads());
 	auto thisTime = std::chrono::system_clock::now();
     build_potential_trips(rvGraph, requests, dist);
 	std::chrono::duration<double> elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
