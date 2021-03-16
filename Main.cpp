@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
 		print_line(outDir, logFile,"Gurobi exception message: "+e.getMessage());
 	}
     env->set(GRB_IntParam_OutputFlag, 0);
-    env->set(GRB_IntParam_Threads, 4);
+    //env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
     total_dist = unserved_dist = raw_dist = 0;
