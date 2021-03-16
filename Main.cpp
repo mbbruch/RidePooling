@@ -23,18 +23,25 @@ using namespace std;
 
 int main(int argc, char* argv[]) {
 
-    char* reqFile = "C:/Code_Projects/RidePooling/requests.csv";//argv[1];
-    char* vehFile = "C:/Code_Projects/RidePooling/vehicles.csv";//argv[2];
+    char* reqFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/requests_chicago.csv";//argv[1];
+    char* vehFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/vehicles_chicago.csv";//argv[2];
     std::string filenameTime = GetCurrentTimeForFileName();
-    outDir = "C:/Code_Projects/RidePooling/" + filenameTime + "/";
+    outDir = "/ocean/projects/eng200002p/mbruchon/RidePooling/Out/" + filenameTime + "/";
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
    logFile = "logfile_" + filenameTime + ".txt";//argv[3];
     setupOutfiles(outDir, outFilename);
     //max_capacity = atoi(argv[4]);
     map_of_pairs dist;
-
+	
 	print_line(outDir,logFile,"Initializing GRBEnv");
-    GRBEnv *env = new GRBEnv();
+	GRBEnv *env;
+	try{
+		env = new GRBEnv();
+	}
+		catch (GRBException& e) {
+		print_line(outDir, logFile,string_format("Gurobi exception code: %d.",e.getErrorCode()));
+		print_line(outDir, logFile,"Gurobi exception message: "+e.getMessage());
+	}
     env->set(GRB_IntParam_OutputFlag, 0);
     env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
@@ -52,6 +59,7 @@ int main(int argc, char* argv[]) {
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
     read_vehicles(vehFile, vehicles);
+    print_line(outDir,logFile,"Vehicles read in");
 
     vector<Request> requests;
     requests.reserve(100);
