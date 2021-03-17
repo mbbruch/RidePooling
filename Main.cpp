@@ -23,8 +23,8 @@ using namespace std;
 
 int main(int argc, char* argv[]) {
 
-    char* reqFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/requests.csv";//argv[1];
-    char* vehFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/vehicles.csv";//argv[2];
+    std::string reqFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/requests_chicago.csv";//argv[1];
+    std::string vehFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/vehicles_chicago.csv";//argv[2];
     std::string filenameTime = GetCurrentTimeForFileName();
     outDir = "/ocean/projects/eng200002p/mbruchon/RidePooling/Out/" + filenameTime + "/";
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
 
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
-    read_vehicles(vehFile, vehicles);
+    read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir,logFile,"Vehicles read in");
 
     vector<Request> requests;
@@ -69,9 +69,9 @@ int main(int argc, char* argv[]) {
 
     vector<Request> unserved;
 
-    FILE *in = get_requests_file(reqFile);
+    FILE *in = get_requests_file(reqFile.c_str());
     fclose(in);
-    in = get_requests_file(reqFile);
+    in = get_requests_file(reqFile.c_str());
 
     while (true) {
 		auto beforeTime = std::chrono::system_clock::now();

@@ -52,12 +52,12 @@ int RTVGraph::addVehicleId(int vehicleId) {
 void RTVGraph::add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost) {
 	int tIdx;
 	#pragma omp critical (addetv1)
-    {
     tIdx = getTIdx(reqsInTrip);
     TIdxComparable tIdxComparable(tIdx);
+	#pragma omp critical (addetv2)
     tIdx_vCostIdxes[tIdxComparable].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfCars(gen1), vIdx}));
+    #pragma omp critical (addetv3)
     vIdx_tIdxes[vIdx].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfTrips(gen2), tIdx}));
-    }
 }
 
 bool RTVGraph::TIdxComparable::operator<(const TIdxComparable& other) const {
@@ -107,7 +107,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         if (lastSizeSize < k) break;
 		auto startOfSizeK = std::chrono::system_clock::now(); 
         map_of_uos newTrips; //key: set of requests (union of two trips); 
-                                                     //value: indices within thesePotentialTrips[k-2]
+        print_line(outDir,logFile,string_format("Starting to build potential %d-request combinations.", k));                                             
+		//value: indices within thesePotentialTrips[k-2]
         if (k == 2) {
 			std::vector<pair<uos,pair<int, uos>>> allCombosOfTwo;
 			allCombosOfTwo.reserve(lastSizeSize*(lastSizeSize-1)/2);
@@ -180,9 +181,12 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         std::transform(newTrips.begin(), newTrips.end(), std::back_inserter(elements),
             [](pair<const uos, pair<int, uos>>& n) { return &n; }
         );
+		
+        print_line(outDir,logFile,string_format("Starting to check feasibility of %d %d-request combinations.", vntsize, k));    
+		
 
 		//std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
-        #pragma omp parallel for default(none) shared(newTrips, thesePotentialTrips, requests, k, dist,thisSizeCounter)
+        #pragma omp parallel for default(none) shared(thesePotentialTrips, k, dist, thisSizeCounter, elements, requests)
 		for(int j = 0; j < vntsize; j++){
             if (k > 2 && elements[j]->second.first < k) continue; //complete clique requirement: all k subsets of size k-1 must be in here
             vector<Request> copiedRequests;
@@ -215,10 +219,6 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 }
                 #pragma omp critical (updateprior2)
                 thisSizeCounter++;
-            }
-            else {
-                printf("failed");
-                int x = 5;
             }
         }
 		
@@ -365,7 +365,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
         allPotentialTrips.push_back(vector<tripCandidate>{});
     }
 
-	omp_set_num_threads(1);// omp_get_max_threads());
+	//omp_set_num_threads(1);// omp_get_max_threads());
 	auto thisTime = std::chrono::system_clock::now();
 	build_potential_trips(rvGraph, requests, dist);
 	std::chrono::duration<double> elapsed_seconds = (std::chrono::system_clock::now()-thisTime);

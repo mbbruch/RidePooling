@@ -249,7 +249,7 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
             src_dst.emplace(req->start, set<int>{ req->end });
         }
         else {
-            (*it).second.emplace(req->end);
+            (*it).second.insert(req->end);
         }
     }
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
