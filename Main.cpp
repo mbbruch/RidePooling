@@ -32,11 +32,18 @@ int main(int argc, char* argv[]) {
     setupOutfiles(outDir, outFilename);
     //max_capacity = atoi(argv[4]);
     map_of_pairs dist;
-
+	
 	print_line(outDir,logFile,"Initializing GRBEnv");
-    GRBEnv *env = new GRBEnv();
+	GRBEnv *env;
+	try{
+		env = new GRBEnv();
+	}
+		catch (GRBException& e) {
+		print_line(outDir, logFile,string_format("Gurobi exception code: %d.",e.getErrorCode()));
+		print_line(outDir, logFile,"Gurobi exception message: "+e.getMessage());
+	}
     env->set(GRB_IntParam_OutputFlag, 0);
-    env->set(GRB_IntParam_Threads, 4);
+    //env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
     total_dist = unserved_dist = raw_dist = 0;
@@ -52,6 +59,7 @@ int main(int argc, char* argv[]) {
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
     read_vehicles(vehFile, vehicles);
+    print_line(outDir,logFile,"Vehicles read in");
 
     vector<Request> requests;
     requests.reserve(100);

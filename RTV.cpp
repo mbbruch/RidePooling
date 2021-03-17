@@ -551,19 +551,13 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     int prevSize = 0;
     for (int i = 0; i < vIdx_tIdxes.size(); ++i)
     {
-        for (int j = 0; j < vIdx_tIdxes[i].size(); ++j)
-        {
-            prevSize++;
-        }
+		prevSize = prevSize + vIdx_tIdxes[i].size();
     }
     prune();
     int prunedSize = 0;
     for (int i = 0; i < vIdx_tIdxes.size(); ++i)
     {
-        for (int j = 0; j < vIdx_tIdxes[i].size(); ++j)
-        {
-            prunedSize++;
-        }
+		prevSize = prevSize + vIdx_tIdxes[i].size();
     }
     elapsed_seconds = std::chrono::system_clock::now() - startOfPrune;
     print_line(outDir, logFile, string_format("RTV size trimmed from %d to %d in a total of %f seconds.",
@@ -661,7 +655,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     model.set("TimeLimit", "1500.0");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
-	model.set("Method","4");
+	model.set("Method","3");
 	model.set("NodeFileStart","1.0");
 	//model.set("Presolve","1");
 	//model.set("VarBranch","3");
