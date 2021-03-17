@@ -26,15 +26,15 @@ const bool DEBUG_ = false;
 const bool Optimization_G_tree_Search = true;//Whether to enable full connection acceleration algorithm
 const bool Optimization_KNN_Cut = true;//Whether to enable the KNN pruning query algorithm
 const bool Optimization_Euclidean_Cut = false;//Whether to enable pruning algorithm based on Euclidean distance in cache query
-const char Edge_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/chicago.edge";// In the first line, two integers n, m represent the number of points and edges, 
+const char Edge_File[] = "C:/Code_Projects/RidePooling/In/austin.edge";// In the first line, two integers n, m represent the number of points and edges, 
 									//and in the next m lines, three integers U, V, C represent U->V has an edge of length C
-const char Node_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/chicago.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
+const char Node_File[] = "C:/Code_Projects/RidePooling/In/austin.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
 									//of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
-
-const char ST_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/s_t_for_map.csv";
-const char GPTree_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/GP_Tree_chicago.data";
+const char GPTree_File[] = "C:/Code_Projects/RidePooling/In/GP_Tree.data";
 const char DistMap_FileShort[] = "dist_map_chicago.data";
-const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/dist_map_chicago.data";
+const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/dist_map_chicago.data";
+const char ST_File[] = "dist_map_chicago.data";
+
 const int Global_Scheduling_Cars_Per_Request = 30000000;//Each plan accurately counts up to the number of vehicles reserved(time overhead)
 const double Unit = 0.1;//路网文件的单位长度/m
 const double R_earth = 6371000.0;//地球半径，用于输入经纬度转化为x,y坐标
@@ -611,10 +611,10 @@ map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
 	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
 		if ((*it).first == (*it).second) continue;
 		if ((*it).first < (*it).second) {
-			mop[pair<int, int>{(*it).first, (*it).second}] = tree.search_cache((*it).first - 1, (*it).second - 1);
+			mop.emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
 		}
 		else {
-			mop[pair<int, int>{(*it).second, (*it).first}] = tree.search_cache((*it).second - 1, (*it).first - 1);
+			mop.emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
 		}
 	}
 	vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
@@ -622,7 +622,7 @@ map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
 		int this_s = vec1[i];
 		for (int j = i + 1; j < vec1.size(); j++) {
 			int this_t = vec1[j];
-			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
 		}
 	}
 	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
@@ -630,7 +630,7 @@ map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
 		int this_s = vec2[i];
 		for (int j = i + 1; j < vec2.size(); j++) {
 			int this_t = vec2[j];
-			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
 		}
 	}
 	mop.rehash(mop.size());
@@ -1348,8 +1348,7 @@ void G_Tree::add_border(int x, int id, int id2)//向x点的border集合中加入
 {
 	if (node[x].borders.find(id) == node[x].borders.end())
 	{
-		pair<int, int> second = make_pair((int)node[x].borders.size(), id2);
-		node[x].borders[id] = second;
+		node[x].borders.emplace(id,pair<int,int>((int)node[x].borders.size(), id2));
 	}
 }
 
