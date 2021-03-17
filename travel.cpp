@@ -95,10 +95,11 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             3. Set all of those requests as onBoard
             4. Add all of those requests to "getOns" vector
         */
-        if (!visited && !exceeded && src_dst.find(node) != src_dst.end()) {
-            auto iterDst = src_dst[node].begin();
-            while (iterDst != src_dst[node].end()) {
-                if (target.insert(*iterDst).second) {
+        auto itNode = src_dst.find(node);
+        if (!visited && !exceeded && itNode != src_dst.end()) {
+            auto iterDst = (*itNode).second.begin();
+            while (iterDst != (*itNode).second.end()) {
+                if (target.emplace(*iterDst).second) {
                     // record nodes newly inserted into target
                     inserted.push_back(*iterDst);
                 }
@@ -145,13 +146,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                         break; //TODO why isn't this continue?? some requests aren't checked
                     }
                     if (reqs[i]->end == node) {
-                        if (newTime == 2744 && node == 2017) {
-                            int x = 5;
-                        }
                         reqs[i]->status = Request::droppedOff;
-                        if (reqs[i]->start == 566 && reqs[i]->end == 2956) {
-                            int x = 5;
-                        }
                         if (decided) {
                             reqs[i]->scheduledOffTime = newTime;
                             schedule.push_back(*reqs[i]);
@@ -248,8 +243,14 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     // insert new requests: s->t into src_dst
     for (int i = 0; i < numReqs; i++) {
         Request *req = reqs[i];
-        src_dst[req->start].insert(req->end);
         target.insert(req->start);
+        auto it = src_dst.find(req->start);
+        if (it == src_dst.end()) {
+            src_dst.emplace(req->start, set<int>{ req->end });
+        }
+        else {
+            (*it).second.emplace(req->end);
+        }
     }
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary

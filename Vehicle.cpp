@@ -129,12 +129,8 @@ void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDe
 
 void Vehicle::updateOccupancyTracker(map<int, int>& occupancyChanges, int time, int change)
 {
-    int val = occupancyChanges[time];
-    if (val == -change) {
+    if ((occupancyChanges[time] += change) == 0) {
         occupancyChanges.erase(time);
-    }
-    else {
-        occupancyChanges[time] = val + change;
     }
 }
 

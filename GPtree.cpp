@@ -611,10 +611,10 @@ map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
 	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
 		if ((*it).first == (*it).second) continue;
 		if ((*it).first < (*it).second) {
-			mop[pair<int, int>{(*it).first, (*it).second}] = tree.search_cache((*it).first - 1, (*it).second - 1);
+			mop.emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
 		}
 		else {
-			mop[pair<int, int>{(*it).second, (*it).first}] = tree.search_cache((*it).second - 1, (*it).first - 1);
+			mop.emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
 		}
 	}
 	vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
@@ -622,7 +622,7 @@ map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
 		int this_s = vec1[i];
 		for (int j = i + 1; j < vec1.size(); j++) {
 			int this_t = vec1[j];
-			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
 		}
 	}
 	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
@@ -630,7 +630,7 @@ map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
 		int this_s = vec2[i];
 		for (int j = i + 1; j < vec2.size(); j++) {
 			int this_t = vec2[j];
-			mop[pair<int, int>{this_s, this_t}] = tree.search_cache(this_s - 1, this_t - 1);
+			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
 		}
 	}
 	mop.rehash(mop.size());
@@ -1348,8 +1348,7 @@ void G_Tree::add_border(int x, int id, int id2)//向x点的border集合中加入
 {
 	if (node[x].borders.find(id) == node[x].borders.end())
 	{
-		pair<int, int> second = make_pair((int)node[x].borders.size(), id2);
-		node[x].borders[id] = second;
+		node[x].borders.emplace(id,pair<int,int>((int)node[x].borders.size(), id2));
 	}
 }
 
