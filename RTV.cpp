@@ -557,7 +557,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     int prunedSize = 0;
     for (int i = 0; i < vIdx_tIdxes.size(); ++i)
     {
-		prevSize = prevSize + vIdx_tIdxes[i].size();
+		prunedSize = prunedSize + vIdx_tIdxes[i].size();
     }
     elapsed_seconds = std::chrono::system_clock::now() - startOfPrune;
     print_line(outDir, logFile, string_format("RTV size trimmed from %d to %d in a total of %f seconds.",
