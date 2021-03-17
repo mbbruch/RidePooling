@@ -23,10 +23,10 @@ using namespace std;
 
 int main(int argc, char* argv[]) {
 
-    char* reqFile = "C:/Code_Projects/RidePooling/In/requests.csv";//argv[1];
-    char* vehFile = "C:/Code_Projects/RidePooling/In/vehicles.csv";//argv[2];
+    char* reqFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/requests.csv";//argv[1];
+    char* vehFile = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/vehicles.csv";//argv[2];
     std::string filenameTime = GetCurrentTimeForFileName();
-    outDir = "C:/Code_Projects/RidePooling/Out/" + filenameTime + "/";
+    outDir = "/ocean/projects/eng200002p/mbruchon/RidePooling/Out/" + filenameTime + "/";
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
    logFile = "logfile_" + filenameTime + ".txt";//argv[3];
     setupOutfiles(outDir, outFilename);
