@@ -211,9 +211,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, map_of_pairs& di
                 this->timeToNextNode = schedTime - nowTime;
                 this->available = (this->timeToNextNode < time_step);
                 this->availableSince = this->timeToNextNode + nowTime;
-                if (this->availableSince < 0) {
-                    int x = 5;
-                }
                 break;
             }
         }
@@ -222,9 +219,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, map_of_pairs& di
         this->timeToNextNode -= time_step;
         this->available = (this->timeToNextNode < time_step);
         this->availableSince = this->timeToNextNode + nowTime;
-        if (this->availableSince < 0) {
-            int x = 5;
-        }
         if (this->available) {
             int schedTime = this->scheduledPath.front().first;
             int node = this->scheduledPath.front().second;
@@ -254,7 +248,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, map_of_pairs& di
         if (iterPsngr->scheduledOnTime > baseTime) {
             iterPsngr->status = Request::waiting; //TODO is this addition needed?
             newRequests.push_back(*iterPsngr);
-            // printf("%d waiting, ", iterPsngr->unique);
         }
         else if (iterPsngr->scheduledOffTime <= baseTime) {
             // already got off

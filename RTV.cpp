@@ -89,12 +89,11 @@ int RTVGraph::getTIdx(const uos& trip) {
 }
 
 void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, map_of_pairs& dist) {
-
-    vector<vector<tripCandidate>> thesePotentialTrips(allPotentialTrips);
+	allPotentialTrips.clear();
     //Enumerate trips of size=1
-	thesePotentialTrips[0].reserve(requests.size());
+	allPotentialTrips[0].reserve(requests.size());
     for (int i = 0; i < requests.size(); i++) {
-        thesePotentialTrips[0].push_back(tripCandidate(uos{ i }));
+        allPotentialTrips[0].push_back(tripCandidate(uos{ i }));
     }
 
 	auto time2 = std::chrono::system_clock::now();
@@ -108,7 +107,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 		auto startOfSizeK = std::chrono::system_clock::now(); 
         map_of_uos newTrips; //key: set of requests (union of two trips); 
         print_line(outDir,logFile,string_format("Starting to build potential %d-request combinations.", k));                                             
-		//value: indices within thesePotentialTrips[k-2]
+		//value: indices within allPotentialTrips[k-2]
         if (k == 2) {
 			std::vector<pair<uos,pair<int, uos>>> allCombosOfTwo;
 			allCombosOfTwo.reserve(lastSizeSize*(lastSizeSize-1)/2);
@@ -139,20 +138,20 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			k=4: 12 & 23 & 13 & 14 & 24 & 34 have to be in 2, 1 & 2 & 3 have to each be in 3, 2 has to be in 3
 			k=5: 123 has to be in 2, 12 has to be in 3, 1 has to be in 4
             */
-            const int twoSmallerSize = thesePotentialTrips[k - 3].size();
+            const int twoSmallerSize = allPotentialTrips[k - 3].size();
             int m;
-            #pragma omp parallel for private(m) shared(thesePotentialTrips, k, newTrips)
+            #pragma omp parallel for private(m) shared(allPotentialTrips, k, newTrips)
             for (m = 0; m < twoSmallerSize; m++) {
-                const tripCandidate& dependency = thesePotentialTrips[k - 3][m];
+                const tripCandidate& dependency = allPotentialTrips[k - 3][m];
                 const vector<int>& dependentTrips = dependency.dependentTrips;
                 int numDependentTrips = dependentTrips.size();
                 if (numDependentTrips < 2) continue;
                 for (int i = 0; i < numDependentTrips; i++) {
                     int indexI = dependentTrips[i];
-                    const uos& trip1 = thesePotentialTrips[k - 2][indexI].requests;
+                    const uos& trip1 = allPotentialTrips[k - 2][indexI].requests;
                     for (int j = i + 1; j < numDependentTrips; j++) {
                         int indexJ = dependentTrips[j];
-                        const uos& trip2 = thesePotentialTrips[k - 2][indexJ].requests;
+                        const uos& trip2 = allPotentialTrips[k - 2][indexJ].requests;
                         uos tripUnion(trip1);
                         for (auto it = trip2.begin(); it != trip2.end(); it++) {
                             if (tripUnion.emplace(*it).second) break;
@@ -186,7 +185,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 		
 
 		//std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
-        #pragma omp parallel for default(none) shared(thesePotentialTrips, k, dist, thisSizeCounter, elements, requests)
+        #pragma omp parallel for default(none) shared(allPotentialTrips, k, dist, thisSizeCounter, elements, requests)
 		for(int j = 0; j < vntsize; j++){
             if (k > 2 && elements[j]->second.first < k) continue; //complete clique requirement: all k subsets of size k-1 must be in here
             vector<Request> copiedRequests;
@@ -211,11 +210,11 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             }
             if (pathFound == true) {
                 #pragma omp critical (updateprior1)
-                thesePotentialTrips[k - 1].push_back(tripCandidate(elements[j]->first));
+                allPotentialTrips[k - 1].push_back(tripCandidate(elements[j]->first));
                 for (auto dependentIter = elements[j]->second.second.begin(); dependentIter != elements[j]->second.second.end(); dependentIter++) {
                     int temp = *dependentIter;
                     #pragma omp critical (updateprior2)
-                    thesePotentialTrips[k - 2][temp].dependentTrips.push_back(thisSizeCounter);
+                    allPotentialTrips[k - 2][temp].dependentTrips.push_back(thisSizeCounter);
                 }
                 #pragma omp critical (updateprior2)
                 thisSizeCounter++;
@@ -231,7 +230,6 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			));
         lastSizeSize = thisSizeCounter;
     }
-    allPotentialTrips = thesePotentialTrips;
 }
 
 

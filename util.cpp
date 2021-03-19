@@ -154,8 +154,8 @@ void print_line(const std::string& outDir, const std::string& outFilename, const
 }
 
 void log_stats() {
-    printf("Service rate: %d / %d = %f\n",
-        these_served_reqs, these_reqs, (double(these_served_reqs)) / these_reqs);
+ //   printf("Service rate: %d / %d = %f\n",
+ //       these_served_reqs, these_reqs, (double(these_served_reqs)) / these_reqs);
  //   printf("Dratio = %f\n", double(total_dist + unserved_dist) / raw_dist);
  //   printf("Eratio = %f\n", double(total_dist) / (raw_dist - unserved_dist));
  //   printf("Total waiting time = %d\n", total_wait_time);

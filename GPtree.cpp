@@ -537,7 +537,7 @@ void save()
 	printf("begin save\n");
 	freopen(GPTree_File, "w", stdout);
 	tree.save();
-//	freopen("/dev/tty", "w", stdout);
+	freopen("/dev/tty", "w", stdout);
 	printf("save_over\n");
 }
 void load()
@@ -545,7 +545,7 @@ void load()
 	FILE* in = freopen(GPTree_File, "r", stdin);
 	tree.load();
 	fclose(in);
-//	freopen("/dev/tty", "r", stdin);
+	freopen("/dev/tty", "r", stdin);
 }
 
 void initialize(bool load_cache, map_of_pairs& dist) {
@@ -569,7 +569,7 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		tree.build();
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("build from scratch")
-		save();
+		//save();
 	}
 
 }
