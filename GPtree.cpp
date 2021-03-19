@@ -35,7 +35,6 @@ const char ST_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/s_t_f
 const char GPTree_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/GP_Tree_chicago.data";
 const char DistMap_FileShort[] = "dist_map_chicago.data";
 const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/dist_map_chicago.data";
-const char ST_File[] = "dist_map_chicago.data";
 
 const int Global_Scheduling_Cars_Per_Request = 30000000;//Each plan accurately counts up to the number of vehicles reserved(time overhead)
 const double Unit = 0.1;//路网文件的单位长度/m
