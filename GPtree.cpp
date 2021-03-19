@@ -1,4 +1,4 @@
-﻿#include <sstream>
+#include <sstream>
 #include<iostream>
 #include<cstdio>
 #include<cstdlib>
@@ -30,6 +30,8 @@ const char Edge_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/chi
 									//and in the next m lines, three integers U, V, C represent U->V has an edge of length C
 const char Node_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/chicago.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
 									//of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
+
+const char ST_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/s_t_for_map.csv";
 const char GPTree_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/GP_Tree_chicago.data";
 const char DistMap_FileShort[] = "dist_map_chicago.data";
 const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/RidePooling/In/dist_map_chicago.data";
@@ -537,7 +539,7 @@ void save()
 	printf("begin save\n");
 	freopen(GPTree_File, "w", stdout);
 	tree.save();
-	freopen("/dev/tty", "w", stdout);
+//	freopen("/dev/tty", "w", stdout);
 	printf("save_over\n");
 }
 void load()
@@ -545,7 +547,7 @@ void load()
 	FILE* in = freopen(GPTree_File, "r", stdin);
 	tree.load();
 	fclose(in);
-	freopen("/dev/tty", "r", stdin);
+//	freopen("/dev/tty", "r", stdin);
 }
 
 void initialize(bool load_cache, map_of_pairs& dist) {
@@ -561,9 +563,7 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 	}else{
 		//TIME_TICK_START
 		init();
-		printf("init done\n");
 		read();
-		printf("read done\n");
 		Additional_Memory = 2 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		tree.build();
@@ -896,7 +896,6 @@ vector<int> Graph::Split(Graph* G[], int nparts)//将子图一分为二返回col
 			// ensure edges within
 			if ( nset.find( enid ) != nset.end() ){
 			xadj_accum ++;
-
 			adjncy[adjncy_pos] = enid;
 			adjwgt[adjncy_pos] = Nodes[nid].adjweight[j];
 			adjncy_pos ++;
