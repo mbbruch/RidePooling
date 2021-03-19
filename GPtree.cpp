@@ -569,7 +569,7 @@ void initialize(bool load_cache, map_of_pairs& dist) {
 		tree.build();
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("build from scratch")
-		//save();
+		save();
 	}
 
 }
