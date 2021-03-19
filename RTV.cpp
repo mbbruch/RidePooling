@@ -88,16 +88,9 @@ int RTVGraph::getTIdx(const uos& trip) {
     return numTrips++;
 }
 
-<<<<<<< HEAD
-void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, map_of_pairs& dist) {
-	allPotentialTrips.clear();
-    //Enumerate trips of size=1
-	allPotentialTrips[0].reserve(requests.size());
-=======
 void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, map_of_pairs& dist) {
     //Enumerate trips of size=1
     allPotentialTrips[0].reserve(requests.size());
->>>>>>> de671ced5145536adb1059fbbe6f2b224f002a19
     for (int i = 0; i < requests.size(); i++) {
         allPotentialTrips[0].push_back(tripCandidate(uos{ i }));
     }
@@ -191,18 +184,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         );
 		
         print_line(outDir,logFile,string_format("Starting to check feasibility of %d %d-request combinations.", vntsize, k));    
-		
 
-<<<<<<< HEAD
-		//std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
-        #pragma omp parallel for default(none) shared(allPotentialTrips, k, dist, thisSizeCounter, elements, requests)
-		for(int j = 0; j < vntsize; j++){
-            if (k > 2 && elements[j]->second.first < k) continue; //complete clique requirement: all k subsets of size k-1 must be in here
-            vector<Request> copiedRequests;
-            for (auto itr = elements[j]->first.begin(); itr != elements[j]->first.end(); itr++) {
-                copiedRequests.push_back(requests[*itr]);
-            }
-=======
         if (completeCliques > 0) {
             //std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
             #pragma omp parallel for default(none) shared(newTrips, allPotentialTrips, requests, k, dist,thisSizeCounter)
@@ -212,22 +194,12 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 for (auto itr = elements[j]->first.begin(); itr != elements[j]->first.end(); itr++) {
                     copiedRequests.push_back(requests[*itr]);
                 }
->>>>>>> de671ced5145536adb1059fbbe6f2b224f002a19
 
-                Request* reqs[max_trip_size];
+		Request* reqs[max_trip_size];
                 for (int i = 0; i < k; i++) {
                     reqs[i] = &copiedRequests[i];
                 }
-<<<<<<< HEAD
-            }
-            if (pathFound == true) {
-                #pragma omp critical (updateprior1)
-                allPotentialTrips[k - 1].push_back(tripCandidate(elements[j]->first));
-                for (auto dependentIter = elements[j]->second.second.begin(); dependentIter != elements[j]->second.second.end(); dependentIter++) {
-                    int temp = *dependentIter;
-                    #pragma omp critical (updateprior2)
-                    allPotentialTrips[k - 2][temp].dependentTrips.push_back(thisSizeCounter);
-=======
+		    
                 bool pathFound = false;
                 //NOTE: as of now, start location is irrelevant BUT ONLY BECAUSE time starts at -9999 so delay time is zero
                 Vehicle virtualCar = Vehicle();
@@ -249,11 +221,6 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                     }
                     #pragma omp critical (updateprior2)
                     thisSizeCounter++;
-                }
-                else {
-                    printf("failed");
-                    int x = 5;
->>>>>>> de671ced5145536adb1059fbbe6f2b224f002a19
                 }
             }
 
