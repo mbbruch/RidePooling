@@ -31,7 +31,7 @@ class RTVGraph {
         };
     };
 
-    vector<vector<tripCandidate>> allPotentialTrips;
+    inline static vector<vector<tripCandidate>> allPotentialTrips;
 
 
     /* WHAT WE NEED:
@@ -74,7 +74,7 @@ class RTVGraph {
     int getTIdx(const uos& trip);
 
     void add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost);
-    void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, map_of_pairs& dist);
+    void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, map_of_pairs& dist);
 
     void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, 
         RVGraph* rvGraph, vector<Request>& requests,
