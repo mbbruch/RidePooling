@@ -75,7 +75,7 @@ void Vehicle::insert_targets(set<int>& target) {
     }
 }
 
-void Vehicle::setup_occupancy_changes(vector<pair<int, int>>& changes) {
+void Vehicle::setup_occupancy_changes(map<int, int>& changes) {
     for (int i = 0; i < passengers.size(); i++) {
         updateOccupancyTracker(changes, passengers[i].scheduledOnTime, 1);
         updateOccupancyTracker(changes, passengers[i].scheduledOffTime, -1);
@@ -93,18 +93,18 @@ void Vehicle::setup_occupancy_changes(vector<pair<int, int>>& changes) {
 /// <param name="schedule"></param>
 /// <param name="decided"></param>
 void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDelays, vector<int>& getOffPsngr, vector<Request>& schedule,
-    vector<pair<int, int>>& occupancyChanges, bool decided) {
+    map<int, int>& occupancyChanges, bool decided) {
 
-									   
+    auto it = occupancyChanges.begin();
     int occupancy = 0;
-    for (int i = 0; i < occupancyChanges.size(); i++) {
-						 
-        occupancy += occupancyChanges[i].second;
+    auto itEnd = occupancyChanges.end();
+    while (it != itEnd) {
+        occupancy += it->second;
         if (occupancy > max_capacity) {
             exceeded = true;
             return;
         }
-			 
+        it++;
     }
 
     for (int i = 0; i < passengers.size(); i++) {
@@ -127,25 +127,25 @@ void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDe
     }
 }
 
-void Vehicle::updateOccupancyTracker(vector<pair<int, int>>& occupancyChanges, const int time, const int change)
+void Vehicle::updateOccupancyTracker(map<int, int>& occupancyChanges, int time, int change)
 {
-    int size = occupancyChanges.size();
-    if (size > 0 && time == occupancyChanges[size-1].first) {
-        if (change == -occupancyChanges[size-1].second) {
-            occupancyChanges.pop_back();
-        }
-        else {
-            occupancyChanges[size-1].second += change;
-        }
-   
-									   
-								   
-							 
+	int val = occupancyChanges[time];
+  
+    if (val == -change) {
+        occupancyChanges.erase(time);
     }
     else {
-        occupancyChanges.push_back(pair<int, int>{time, change});
+        occupancyChanges[time] = val + change;
     }
-   
+	/*
+	auto it = occupancyChanges.find(time);
+	if(((*it).second+= change) == 0) {
+		occupancyChanges.erase(it);
+	}
+    if ((occupancyChanges[time] += change) == 0) {
+        occupancyChanges.erase(time);
+    }
+	*/
 }
 
 void Vehicle::reverse_passengers(vector<int>& getOffPsngr, vector<Request>& schedule, bool decided) {

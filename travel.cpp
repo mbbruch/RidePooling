@@ -30,7 +30,7 @@ using namespace std;
 void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
     set<int>& target, map<int, set<int> >& src_dst,
     vector<pair<int, int> >& path, vector<Request>& schedule,
-    vector<pair<int, int>>& occupancyChanges,
+    map<int, int>& occupancyChanges,
     map_of_pairs& dist,
     int travelled, int nowDelays, int& nowTime, bool decided, bool feasibilityCheck, bool simplestCheck) {
 
@@ -269,8 +269,7 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
         change in the car's # of passengers (-1 for dropoff, +1 for pickup), 
         request # (index into vector of requests)
     */
-    vector<pair<int, int>> occupancyChanges;
-    occupancyChanges.reserve(numReqs * 2 + 1);
+    map<int,int> occupancyChanges;
     vehicle.setup_occupancy_changes(occupancyChanges);
     dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, dist, 0, 0,
         beginTime, decided, feasibilityCheck, simplestCheck);
