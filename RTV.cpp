@@ -240,6 +240,11 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			));
         lastSizeSize = thisSizeCounter;
     }
+	int k;
+    #pragma omp parallel for default(none)
+    for (k = 0; k < allPotentialTrips.size(); k++) {
+        allPotentialTrips[k].shrink_to_fit();
+    }
 }
 
 
@@ -249,7 +254,7 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
 
     map<int, int> req_costs;
     rvGraph->get_vehicle_edges(vehicleId, req_costs); //map of req to cost
-
+	
     int numPreviousSize = 0;
     vector<tripCandidate>& singleTrips = potentialTrips[0];
     bool bNextSizeExists = potentialTrips.size() > 1 && potentialTrips[1].size() > 0;
@@ -268,6 +273,7 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
             numPreviousSize++;
         }
     }
+	vector<tripCandidate>().swap( singleTrips );
 
     // FIRST, TODO: check and see how/whether this code actually uses the in-progress trips?    
     Vehicle& vehicle = vehicles[vehicleId];
@@ -298,9 +304,9 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
                 for (int i = 0; i < newTrips[j].dependentTrips.size(); i++) {
                     potentialTrips[k][newTrips[j].dependentTrips[i]].ruledOut = true;
                 }
-                continue;
             }
         }
+		vector<tripCandidate>().swap(newTrips);
     }
 }
 
@@ -373,7 +379,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
         allPotentialTrips.push_back(vector<tripCandidate>{});
     }
 
-	omp_set_num_threads(omp_get_max_threads()/2);// omp_get_max_threads());
+	omp_set_num_threads(omp_get_max_threads());///2);// omp_get_max_threads());
 	auto thisTime = std::chrono::system_clock::now();
     build_potential_trips(rvGraph, requests, vehicles, dist);
 	std::chrono::duration<double> elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
@@ -395,6 +401,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
 
     int m;
 	const int vehsize = vehicles.size();
+	print_line(outDir,logFile,std::string("Starting parallel section."));
 	#pragma omp parallel for private(m) shared(dist, vehicles, rvGraph, vehIDToVehIdx)
     for (m=0; m < vehsize; m++) {
         if (rvGraph->has_vehicle(m)) {
@@ -445,8 +452,8 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
     model.addConstr(totalEdgesCnt == min(idleCnt, unservedCnt));
     model.setObjective(objective, GRB_MINIMIZE);
 
-    model.set("TimeLimit", "1500.0");
-    model.set("MIPGap", "0.1");
+    model.set("TimeLimit", "300.0");
+    model.set("MIPGap", "0.01");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
 	model.set("NodeFileStart","1.0");
@@ -660,7 +667,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
 		}
     }
     model.set("TimeLimit", "1500.0");
-    model.set("MIPGap", "0.1");
+    model.set("MIPGap", "0.01");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
 	model.set("Method","3");
