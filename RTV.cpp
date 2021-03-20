@@ -445,7 +445,8 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
     model.addConstr(totalEdgesCnt == min(idleCnt, unservedCnt));
     model.setObjective(objective, GRB_MINIMIZE);
 
-    model.set("TimeLimit", "300.0");
+    model.set("TimeLimit", "1500.0");
+    model.set("MIPGap", "0.1");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
 	model.set("NodeFileStart","1.0");
@@ -658,8 +659,8 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
 			objective += epsilon[tIdx][vehIdx] * (vCostIdxes[vehIdx].first - reqsInTrip * penalty);
 		}
     }
-
     model.set("TimeLimit", "1500.0");
+    model.set("MIPGap", "0.1");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
 	model.set("Method","3");
