@@ -29,9 +29,9 @@ public:
     void print_passengers();
     void insert_targets(set<int>& target);
     void check_passengers(int nowTime, int stop, bool& exceeded, int& sumCost,
-        vector<int>& getOffPsngr, vector<Request>& schedule, map<int, int>& occupancyChanges, bool decided);
-    void updateOccupancyTracker(map<int, int>& occupancyChanges, int time, int change);
-    void setup_occupancy_changes(map<int, int>& changes);
+        vector<int>& getOffPsngr, vector<Request>& schedule, vector<pair<int, int>>& occupancyChanges, bool decided);
+    void updateOccupancyTracker(vector<pair<int, int>>& occupancyChanges, const int time, const int change);
+    void setup_occupancy_changes(vector<pair<int, int>>& changes);
     void reverse_passengers(vector<int>& getOffPsngr,
         vector<Request>& schedule, bool decided);
     void set_passengers(vector<Request>& psngrs);

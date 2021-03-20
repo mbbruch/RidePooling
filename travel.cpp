@@ -30,7 +30,7 @@ using namespace std;
 void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
     set<int>& target, map<int, set<int> >& src_dst,
     vector<pair<int, int> >& path, vector<Request>& schedule,
-    map<int, int>& occupancyChanges,
+    vector<pair<int, int>>& occupancyChanges,
     map_of_pairs& dist,
     int travelled, int nowDelays, int& nowTime, bool decided, bool feasibilityCheck, bool simplestCheck) {
 
@@ -95,11 +95,13 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             3. Set all of those requests as onBoard
             4. Add all of those requests to "getOns" vector
         */
-        auto itNode = src_dst.find(node);
-        if (!visited && !exceeded && itNode != src_dst.end()) {
-            auto iterDst = (*itNode).second.begin();
+        
+        if (!visited && !exceeded) {
+			auto itNode = src_dst.find(node);
+			if(itNode != src_dst.end()){
+			auto iterDst = (*itNode).second.begin();
             while (iterDst != (*itNode).second.end()) {
-                if (target.emplace(*iterDst).second) {
+                if (target.insert(*iterDst).second) {
                     // record nodes newly inserted into target
                     inserted.push_back(*iterDst);
                 }
@@ -127,6 +129,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                     getOns.push_back(make_pair(i,newTime));
                 }
             }
+			}
         }
 
         int newDelays = nowDelays;
@@ -243,14 +246,8 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     // insert new requests: s->t into src_dst
     for (int i = 0; i < numReqs; i++) {
         Request *req = reqs[i];
+        src_dst[req->start].insert(req->end);
         target.insert(req->start);
-        auto it = src_dst.find(req->start);
-        if (it == src_dst.end()) {
-            src_dst.emplace(req->start, set<int>{ req->end });
-        }
-        else {
-            (*it).second.insert(req->end);
-        }
     }
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary
@@ -266,20 +263,15 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     vector<Request> schedule;
 
     int beginTime = ((vehicle.isAvailable()) ? vehicle.getAvailableSince() : now_time) + vehicle.get_time_to_next_node();
-    if (vehicle.get_num_passengers() > 0) {
-        int x = 5;
-    }
 
     /* Set of: 
         time, 
         change in the car's # of passengers (-1 for dropoff, +1 for pickup), 
         request # (index into vector of requests)
     */
-    map<int,int> occupancyChanges;
+    vector<pair<int, int>> occupancyChanges;
+    occupancyChanges.reserve(numReqs * 2 + 1);
     vehicle.setup_occupancy_changes(occupancyChanges);
-    if (numReqs == 2) {
-        int x = 0;
-    }
     dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, dist, 0, 0,
         beginTime, decided, feasibilityCheck, simplestCheck);
     

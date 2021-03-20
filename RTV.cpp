@@ -83,7 +83,11 @@ int RTVGraph::getTIdx(const uos& trip) {
     trip_tIdx.emplace(trip, numTrips);
     trips.push_back(trip);
     for (auto iterRIdx = trip.begin(); iterRIdx != trip.end(); iterRIdx++) {
-        rId_tIdxes[*iterRIdx].insert(numTrips);
+        int rId = *iterRIdx;
+        if (rId_tIdxes.find(rId) == rId_tIdxes.end()) {
+            rId_tIdxes[rId] = set<int>();
+        }
+        rId_tIdxes[rId].insert(numTrips);    
     }
     return numTrips++;
 }
@@ -106,7 +110,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 		auto startOfSizeK = std::chrono::system_clock::now(); 
         int completeCliques = 0;
         map_of_uos newTrips; //key: set of requests (union of two trips); 
-        print_line(outDir,logFile,string_format("Starting to build potential %d-request combinations.", k));                                             
+        //print_line(outDir,logFile,string_format("Starting to build potential %d-request combinations.", k));                                             
 		//value: indices within allPotentialTrips[k-2]
         if (k == 2) {
 			std::vector<pair<uos,pair<int, uos>>> allCombosOfTwo;
@@ -140,7 +144,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             */
             const int twoSmallerSize = allPotentialTrips[k - 3].size();
             int m;
-            #pragma omp parallel for private(m) shared(allPotentialTrips, k, newTrips)
+            #pragma omp parallel for private(m) shared(k, newTrips)
             for (m = 0; m < twoSmallerSize; m++) {
                 const tripCandidate& dependency = allPotentialTrips[k - 3][m];
                 const vector<int>& dependentTrips = dependency.dependentTrips;
@@ -158,12 +162,10 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                         } 
                         #pragma omp critical (updateNewTrips)
                         {
-                        auto& itPair = *(newTrips.emplace(tripUnion, pair<int, uos>{0, uos()}).first);
-                        if ((++itPair.second.first) == k) {
-                            completeCliques++;
-                        }
-                        itPair.second.second.insert(indexI);
-                        itPair.second.second.insert(indexJ);
+                        auto& it = newTrips[tripUnion];
+                        it.first++;
+                        it.second.insert(indexI);
+                        it.second.insert(indexJ);
                         } 
                     }
                 }
@@ -183,11 +185,11 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             [](pair<const uos, pair<int, uos>>& n) { return &n; }
         );
 		
-        print_line(outDir,logFile,string_format("Starting to check feasibility of %d %d-request combinations.", vntsize, k));    
+        //print_line(outDir,logFile,string_format("Starting to check feasibility of %d %d-request combinations.", vntsize, k));    
 
-        if (completeCliques > 0) {
+        if (completeCliques >= 0) {
             //std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
-            #pragma omp parallel for default(none) shared(newTrips, allPotentialTrips, requests, k, dist,thisSizeCounter)
+            #pragma omp parallel for default(none) shared(newTrips, elements, requests, k, dist,thisSizeCounter)
             for (int j = 0; j < vntsize; j++) {
                 if (k > 2 && elements[j]->second.first < k) continue; //complete clique requirement: all k subsets of size k-1 must be in here
                 vector<Request> copiedRequests;
@@ -195,7 +197,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                     copiedRequests.push_back(requests[*itr]);
                 }
 
-		Request* reqs[max_trip_size];
+				Request* reqs[max_trip_size];
                 for (int i = 0; i < k; i++) {
                     reqs[i] = &copiedRequests[i];
                 }
@@ -340,9 +342,9 @@ void RTVGraph::greedy_assign_same_trip_size(vector<vector<pair<int, pair<int,int
                 int vIdxIntoCosts = lookupRtoT[vIdx][tIdx];
 				epsilon[tIdx][vIdxIntoCosts].set(GRB_DoubleAttr_Start, 1.0);
                 for (auto iterRId = trips[tIdx].begin(); iterRId != trips[tIdx].end(); iterRId++) {
-                    assignedRIds.emplace(*iterRId);
+                    assignedRIds.insert(*iterRId);
                 }
-                assignedVIdxes.emplace(vIdx);
+                assignedVIdxes.insert(vIdx);
             }
             catch (GRBException& e) {
                 print_line(outDir, logFile,string_format("Gurobi exception code: %d.",e.getErrorCode()));
@@ -363,7 +365,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
 	gen2 = std::mt19937(rd());
 	distribOfCars = std::uniform_int_distribution<>(1, 1000000);
 	distribOfTrips = std::uniform_int_distribution<>(1, 1000000); 
-			
+	allPotentialTrips.clear();
     numRequests = requests.size();
     numTrips = 0;
     numVehicles = 0;
@@ -371,7 +373,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
         allPotentialTrips.push_back(vector<tripCandidate>{});
     }
 
-	//omp_set_num_threads(1);// omp_get_max_threads());
+	omp_set_num_threads(omp_get_max_threads()/2);// omp_get_max_threads());
 	auto thisTime = std::chrono::system_clock::now();
     build_potential_trips(rvGraph, requests, vehicles, dist);
 	std::chrono::duration<double> elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
@@ -393,7 +395,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
 
     int m;
 	const int vehsize = vehicles.size();
-	#pragma omp parallel for private(m) shared(allPotentialTrips, dist, vehicles, rvGraph, vehIDToVehIdx)
+	#pragma omp parallel for private(m) shared(dist, vehicles, rvGraph, vehIDToVehIdx)
     for (m=0; m < vehsize; m++) {
         if (rvGraph->has_vehicle(m)) {
             vector<vector<tripCandidate>> potentialTripsToUse(allPotentialTrips);

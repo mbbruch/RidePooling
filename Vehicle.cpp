@@ -52,10 +52,10 @@ int Vehicle::get_num_passengers() {
 void Vehicle::print_passengers() {
     for (int i = 0; i < passengers.size(); i++) {
         printf("%d: ", passengers[i].unique);
-        if (passengers[i].status==Request::onBoard) {
+        if (passengers[i].status == Request::onBoard) {
             printf("onboard, ");
         }
-        else if(passengers[i].status==Request::waiting){
+        else if (passengers[i].status == Request::waiting) {
             printf("waiting, ");
         }
         else if (passengers[i].status == Request::droppedOff) {
@@ -75,7 +75,7 @@ void Vehicle::insert_targets(set<int>& target) {
     }
 }
 
-void Vehicle::setup_occupancy_changes(map<int, int>& changes) {
+void Vehicle::setup_occupancy_changes(vector<pair<int, int>>& changes) {
     for (int i = 0; i < passengers.size(); i++) {
         updateOccupancyTracker(changes, passengers[i].scheduledOnTime, 1);
         updateOccupancyTracker(changes, passengers[i].scheduledOffTime, -1);
@@ -92,24 +92,24 @@ void Vehicle::setup_occupancy_changes(map<int, int>& changes) {
 /// <param name="getOffPsngr"></param>
 /// <param name="schedule"></param>
 /// <param name="decided"></param>
-void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDelays, vector<int>& getOffPsngr, vector<Request>& schedule, 
-    map<int, int>& occupancyChanges, bool decided) {
+void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDelays, vector<int>& getOffPsngr, vector<Request>& schedule,
+    vector<pair<int, int>>& occupancyChanges, bool decided) {
 
-    auto it = occupancyChanges.begin();
+									   
     int occupancy = 0;
-    auto itEnd = occupancyChanges.end();
-    while (it != itEnd) {
-        occupancy += it->second;
+    for (int i = 0; i < occupancyChanges.size(); i++) {
+						 
+        occupancy += occupancyChanges[i].second;
         if (occupancy > max_capacity) {
             exceeded = true;
             return;
         }
-        it++;
+			 
     }
 
     for (int i = 0; i < passengers.size(); i++) {
         Request& req = passengers[i];
-        if (req.status==Request::onBoard) {
+        if (req.status == Request::onBoard) {
             if (nowTime - req.expectedOffTime > max_delay_sec) {
                 exceeded = true;
                 return;
@@ -127,11 +127,25 @@ void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDe
     }
 }
 
-void Vehicle::updateOccupancyTracker(map<int, int>& occupancyChanges, int time, int change)
+void Vehicle::updateOccupancyTracker(vector<pair<int, int>>& occupancyChanges, const int time, const int change)
 {
-    if ((occupancyChanges[time] += change) == 0) {
-        occupancyChanges.erase(time);
+    int size = occupancyChanges.size();
+    if (size > 0 && time == occupancyChanges[size-1].first) {
+        if (change == -occupancyChanges[size-1].second) {
+            occupancyChanges.pop_back();
+        }
+        else {
+            occupancyChanges[size-1].second += change;
+        }
+   
+									   
+								   
+							 
     }
+    else {
+        occupancyChanges.push_back(pair<int, int>{time, change});
+    }
+   
 }
 
 void Vehicle::reverse_passengers(vector<int>& getOffPsngr, vector<Request>& schedule, bool decided) {
