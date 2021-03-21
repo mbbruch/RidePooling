@@ -78,7 +78,7 @@ class RTVGraph {
 
     void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, 
         RVGraph* rvGraph, vector<Request>& requests,
-        map_of_pairs& dist, vector<vector<tripCandidate>>& potentialTrips);
+        map_of_pairs& dist);
 
     void sort_edges();
 

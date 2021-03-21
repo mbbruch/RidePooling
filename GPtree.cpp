@@ -651,7 +651,7 @@ int find_path(int S, int T, vector<int> &order) {
 }
 
 //TODO: this assume distances are the same in both directions
-int get_dist(int S, int T, map_of_pairs& dist, bool simplestCheck) {
+int get_dist(int S, int T, const map_of_pairs& dist, bool simplestCheck) {
 	pair<int, int> st;
 	if (S < T) {
 		st = make_pair(S, T);

@@ -128,6 +128,12 @@ int main(int argc, char* argv[]) {
             allToAll2.emplace(requests[i].end);
         }
         dist = reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2);
+		ongoingLocs.clear();
+		allToAll1.clear();
+		allToAll2.clear();
+		set<pair<int, int>>().swap(ongoingLocs);
+		set<int>().swap(allToAll1);
+		set<int>().swap(allToAll2);
 
         print_line(outDir, logFile, string_format("Dist map size = %f", dist.size()));
 		beforeTime = std::chrono::system_clock::now();
