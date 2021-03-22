@@ -520,8 +520,8 @@ void read()
 		else G.add(j - 1, k - 1, l);//Two-way edge
 	}
 	fclose(in);
-	//if (Optimization_Euclidean_Cut) TODO revisit; would this help?
-	//{
+	if (Optimization_Euclidean_Cut) //TODO revisit; would this help?
+	{
 		in = fopen(Node_File, "r");
 		double d1, d2;
 		for (i = 0; i<G.n; i++)//读取边
@@ -532,7 +532,7 @@ void read()
 		}
 		fclose(in);
 		printf("read over\n");
-	//}
+	}
 }
 void save()
 {
@@ -606,36 +606,49 @@ void init_dist_map(map_of_pairs& dist_map)
 
 void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
 	set<int>& allToAll1, set<int>& allToAll2, map_of_pairs& mop) {
+
 	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
 		if ((*it).first == (*it).second) continue;
 		if ((*it).first < (*it).second) {
-			mop.emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
+			mop.try_emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
 		}
 		else {
-			mop.emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
+			mop.try_emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
 		}
 	}
 	set<pair<int, int>>().swap(ongoingLocs);
 	vector<int> vec1{allToAll1.begin(), allToAll1.end()};
 	set<int>().swap(allToAll1);
+	
+	int i = 0;
 	const int vec1Size = vec1.size();
+//	#pragma omp parallel for default(none) private(i) shared(vec1, mop, tree)
 	for (int i = 0; i < vec1Size; i++) {
 		int this_s = vec1[i];
 		int this_t = 0;
-		for (int j = i + 1; j < vec1.size(); j++) {
+		for (int j = i + 1; j < vec1Size; j++) {
 			this_t = vec1[j];
-			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+//			#pragma omp critical(updateMop)
+//			{
+				mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+//			}
 		}
 	}
-	vector<int> vec2{allToAll2.begin(), allToAll2.end()};
+	vector<int>().swap(vec1);
+	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
 	set<int>().swap(allToAll2);
+	i = 0;
 	const int vec2Size = vec2.size();
+//	#pragma omp parallel for default(none) private(i) shared(vec2, mop, tree)
 	for (int i = 0; i < vec2Size; i++) {
 		int this_s = vec2[i];
 		int this_t = 0;
-		for (int j = i + 1; j < vec2.size(); j++) {
+		for (int j = i + 1; j < vec2Size; j++) {
 			this_t = vec2[j];
-			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+//			#pragma omp critical(updateMop)
+//			{
+			mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+//			}
 		}
 	}
 	vector<int>().swap(vec2);
@@ -1751,10 +1764,20 @@ void G_Tree::push_borders_down_cache(int x, int y, int bound)//将S到结点x边
 	for (int i = 0; i<tot0; i++)
 	{
 		int i_ = begin[i];
+		int j_ = 0;
+		int tocompare = 0;
+		int dist2i = (*dist2)[i_];
+		int* disti = dist[i_];
 		for (int j = 0; j<tot1; j++)
 		{
+			j_ = end[j];
+			tocompare = dist2i + disti[j_];
+			if ((*dist2)[j_] > tocompare)
+				(*dist2)[j_] = tocompare;
+			/*
 			if ((*dist2)[end[j]]>(*dist2)[i_] + dist[i_][end[j]])
 				(*dist2)[end[j]] = (*dist2)[i_] + dist[i_][end[j]];
+			*/
 		}
 	}
 	delete[] begin;
@@ -1773,25 +1796,54 @@ void G_Tree::push_borders_brother_cache(int x, int y, int bound)//将S到结点x
 	node[y].cache_id = S;
 	node[y].cache_bound = bound;
 	vector<int>id_LCA[2], id_now[2];//子结点候选border在LCA中的border序列编号,子结点候选border在内部的border序列的编号
+	int nodexcacheid = node[x].cache_id;
+	int nodepbifi = 0;
 	for (int t = 0; t<2; t++)
 	{
-		if (t == 0)p = x;
-		else p = y;
-		for (i = j = 0; i<(int)node[p].borders.size(); i++)
-			if (node[p].border_in_father[i] != -1)
-				if ((t == 1 && (Optimization_Euclidean_Cut == false || Euclidean_Dist(node[x].cache_id, node[p].border_id[i])<bound)) || (t == 0 && node[p].cache_dist[i]<bound))
+		Node& nodep = (t == 0) ? node[x] : node[y];
+		for (i = j = 0; i < (int)nodep.borders.size(); i++)
+		{
+			nodepbifi = nodep.border_in_father[i];
+			if (nodepbifi != -1)
+				if ((t == 1 && (Optimization_Euclidean_Cut == false || Euclidean_Dist(nodexcacheid, nodep.border_id[i]) < bound))
+					||
+					(t == 0 && nodep.cache_dist[i] < bound)
+					)
 				{
-					id_LCA[t].push_back(node[p].border_in_father[i]);
+					id_LCA[t].push_back(nodepbifi);
 					id_now[t].push_back(i);
 				}
+		}
+
+		/*
+		vector<int>& idnowt = id_now[t];
+		vector<int>& idlcat = id_LCA[t];
+		p = (t == 0) ? x : y;
+		int nodepbifi = 0;
+		for (i = j = 0; i<(int)node[p].borders.size(); i++)
+		nodepbifi = node[p].border_in_father[i];
+		if (nodepbifi != -1)
+				if ((t == 1 && (Optimization_Euclidean_Cut == false || Euclidean_Dist(node[x].cache_id, node[p].border_id[i])<bound)) || (t == 0 && node[p].cache_dist[i]<bound))
+				{
+		idlcat.push_back(nodepbifi);
+		idnowt.push_back(i);
+				}
+		*/
 	}
 	for (int i = 0; i<node[y].cache_dist.size(); i++)node[y].cache_dist[i] = INF;
-	for (int i = 0; i<id_LCA[0].size(); i++)
-		for (int j = 0; j<id_LCA[1].size(); j++)
+
+	vector<int>& idnow1 = id_now[1];
+	vector<int> & idlca1 = id_LCA[1];
+	for (int i = 0; i < id_LCA[0].size(); i++) {
+		int xdist = node[x].cache_dist[id_now[0][i]];
+		int* thisA = node[LCA].dist.a[id_LCA[0][i]];
+		for (int j = 0; j < id_LCA[1].size(); j++)
 		{
-			int k = node[x].cache_dist[id_now[0][i]] + node[LCA].dist.a[id_LCA[0][i]][id_LCA[1][j]];
-			if (k<node[y].cache_dist[id_now[1][j]])node[y].cache_dist[id_now[1][j]] = k;
+			int k = xdist + thisA[idlca1[j]];
+			if (k < node[y].cache_dist[idnow1[j]])node[y].cache_dist[idnow1[j]] = k;
 		}
+	}
+
 	int** dist = node[y].dist.a;
 	//vector<int>begin,end;//已算出的序列编号,未算出的序列编号
 	int* begin, * end;
@@ -1810,12 +1862,34 @@ void G_Tree::push_borders_brother_cache(int x, int y, int bound)//将S到结点x
 	for (int i = 0; i<tot0; i++)
 	{
 		int i_ = begin[i];
+		int j_ = 0;
+		int tocompare = 0;
+		int dist2i = node[y].cache_dist[i_];
+		int* disti = dist[i_];
 		for (int j = 0; j<tot1; j++)
 		{
-			if (node[y].cache_dist[end[j]]>node[y].cache_dist[i_] + dist[i_][end[j]])
-				node[y].cache_dist[end[j]] = node[y].cache_dist[i_] + dist[i_][end[j]];
+			j_ = end[j];
+			tocompare = dist2i + disti[j_];
+			if (node[y].cache_dist[j_]> tocompare)
+				node[y].cache_dist[j_] = tocompare;
 		}
 	}
+
+	/*
+	* 	for (int i = 0; i<tot0; i++)
+	{
+		int i_ = begin[i];
+		int j_ = 0;
+		int tocompare = 0;
+		int dist2i = (*dist2)[i_];
+		int* disti = dist[i_];
+		for (int j = 0; j<tot1; j++)
+		{
+			j_ = end[j];
+			tocompare = dist2i + disti[j_];
+			if ((*dist2)[j_] > tocompare)
+				(*dist2)[j_] = tocompare;
+	*/
 	delete[] begin;
 	delete[] end;
 	node[y].min_border_dist = INF;

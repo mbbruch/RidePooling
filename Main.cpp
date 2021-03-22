@@ -107,6 +107,8 @@ int main(int argc, char* argv[]) {
         //one-to-one: vehicle locations + ongoing request locations
         //all-to-all 1: vehicle locations + new request locations (start points only)
         //all-to-all 2: ongoing request locations + new requestion locations
+		
+		beforeTime = std::chrono::system_clock::now();
         std::set<std::pair<int, int>> ongoingLocs;
         std::set<int> allToAll1;
         std::set<int> allToAll2;
@@ -128,9 +130,14 @@ int main(int argc, char* argv[]) {
         map_of_pairs dist{ ongoingLocs.size() +
             (allToAll1.size() * (allToAll1.size() - 1) / 2) +
             (allToAll2.size() * (allToAll2.size() - 1) / 2) };
+			
+		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
+        print_line(outDir,logFile,string_format("Dist map combo set up time = %f", elapsed_seconds.count()));
+		beforeTime = std::chrono::system_clock::now();		
         reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2, dist);
+		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
+        print_line(outDir,logFile,string_format("Dist map set up time = %f", elapsed_seconds.count()));
 
-        print_line(outDir, logFile, string_format("Dist map size = %f", dist.size()));
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests, dist);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;

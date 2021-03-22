@@ -76,20 +76,16 @@ bool RTVGraph::TIdxComparable::operator<(const TIdxComparable& other) const {
 
 
 int RTVGraph::getTIdx(const uos& trip) {
-    auto iter = trip_tIdx.find(trip);
+    auto iter = trip_tIdx.find(trip); 
     if (iter != trip_tIdx.end()) {
         return iter->second;
-    }
-    trip_tIdx.emplace(trip, numTrips);
-    trips.push_back(trip);
-    for (auto iterRIdx = trip.begin(); iterRIdx != trip.end(); iterRIdx++) {
-        int rId = *iterRIdx;
-        if (rId_tIdxes.find(rId) == rId_tIdxes.end()) {
-            rId_tIdxes[rId] = set<int>();
-        }
-        rId_tIdxes[rId].insert(numTrips);    
-    }
-    return numTrips++;
+	}
+		trip_tIdx.emplace(trip, numTrips);
+		trips.push_back(trip);
+		for (auto iterRIdx = trip.begin(); iterRIdx != trip.end(); iterRIdx++) {
+        rId_tIdxes[*iterRIdx].insert(numTrips);
+		}
+	return numTrips++;
 }
 
 void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, map_of_pairs& dist) {
@@ -150,15 +146,16 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 				print_line(outDir,logFile,std::string("Enumerating sparse 2"));
 				set_of_pairs sop;
 				sop.reserve(lastSizeSize* (lastSizeSize - 1) / 2);
+				print_line(outDir,logFile,std::string("sparse 2 space reserved"));
 				int vIdx2 = 0;
 				#pragma omp parallel for default(none) private(vIdx2) shared(sop, k, rvGraph)
 				for (vIdx2 = 0; vIdx2 < nVeh; vIdx2++) {
-					auto it = rvGraph->car_req_cost.find(vIdx2);
-					if (it == rvGraph->car_req_cost.end()) continue;
+					auto itv2 = rvGraph->car_req_cost.find(vIdx2);
+					if (itv2 == rvGraph->car_req_cost.end()) continue;
 					vector<pair<int, int>> vPair;
-					vPair.reserve(it->second.size() * (it->second.size() - 1) / 2);
-					map<int, int>::iterator i, j, end = (*it).second.end();
-					for (i = (*it).second.begin(); i != end; ++i)
+					vPair.reserve(itv2->second.size() * (itv2->second.size() - 1) / 2);
+					map<int, int>::iterator i, j, end = (*itv2).second.end();
+					for (i = (*itv2).second.begin(); i != end; ++i)
 					{
 						j = i;
 						j++;
@@ -167,9 +164,9 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 					}
 					#pragma omp critical(insertTripPair)
 					sop.insert(vPair.begin(), vPair.end());
-					vector<pair<int, int>>().swap(vPair);
-					sop.rehash(sop.size());
 				}
+				
+				print_line(outDir,logFile,std::string("sparse 2 loop finished"));
 				std::vector<pair<uos,pair<int, uos>>> allCombosOfTwo;
 				allCombosOfTwo.reserve(sop.size());
 				for (auto it = sop.begin(); it != sop.end(); it++) {
@@ -178,6 +175,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 				set_of_pairs().swap(sop);
 				newTrips.insert(allCombosOfTwo.begin(), allCombosOfTwo.end());
 				std::vector<pair<uos, pair<int, uos>>>().swap(allCombosOfTwo);
+				
+				print_line(outDir,logFile,std::string("sparse 2 section finished"));
 			}
 			else {
 				print_line(outDir,logFile,std::string("Enumerating dense 2"));
@@ -191,6 +190,9 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 newTrips.insert(allCombosOfTwo.begin(), allCombosOfTwo.end());
 				std::vector<pair<uos, pair<int, uos>>>().swap(allCombosOfTwo);
             }
+			if(bSparseTwo){
+				print_line(outDir,logFile,std::string("sparse 2 section part 2 finished"));
+			}
         }
         else {
             if (bSparseThree && (k == 3)) {
@@ -272,7 +274,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                         if (bSparseThree && (k == 3)) {
                                 auto it = newTrips.find(tripUnion);
                                 if (it != newTrips.end()) {
-                                    #pragma omp critical(updateThree1)
+                                    #pragma omp atomic
                                     (*it).second.first++;
                                     #pragma omp critical(updateThree2)
                                     (*it).second.second.insert({ indexI, indexJ });
@@ -334,15 +336,17 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                     }
                 }
                 if (pathFound == true) {
-                    #pragma omp critical (updateprior1)
+					int thisSizeIdx = -1;
+					#pragma omp critical (updateprior1)
+					{
                     allPotentialTrips[k - 1].push_back(tripCandidate(elements[j]->first));
+                    thisSizeIdx = thisSizeCounter++;
+					}
                     for (auto dependentIter = elements[j]->second.second.begin(); dependentIter != elements[j]->second.second.end(); dependentIter++) {
                         int temp = *dependentIter;
                         #pragma omp critical (updateprior2)
-                        allPotentialTrips[k - 2][temp].dependentTrips.push_back(thisSizeCounter);
+                        allPotentialTrips[k - 2][temp].dependentTrips.push_back(thisSizeIdx);
                     }
-                    #pragma omp critical (updateprior2)
-                    thisSizeCounter++;
                 }
             }
 
@@ -359,11 +363,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			newTrips.size()
 			));
         lastSizeSize = thisSizeCounter;
-    }
-	int k = 0;
-    #pragma omp parallel for default(none)
-    for (k = 0; k < allPotentialTrips.size(); k++) {
-        allPotentialTrips[k].shrink_to_fit();
+        allPotentialTrips[k-1].shrink_to_fit();
     }
 }
 
@@ -491,7 +491,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
 	gen2 = std::mt19937(rd());
 	distribOfCars = std::uniform_int_distribution<>(1, 1000000);
 	distribOfTrips = std::uniform_int_distribution<>(1, 1000000); 
-	allPotentialTrips.clear();
+	vector<vector<tripCandidate>> ().swap(allPotentialTrips);
     numRequests = requests.size();
     numTrips = 0;
     numVehicles = 0;
@@ -528,6 +528,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
             build_single_vehicle(m, vehIDToVehIdx[m], vehicles, rvGraph, requests, dist);
         }
     }
+	vector<vector<tripCandidate>> ().swap(allPotentialTrips);
 	elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
 	print_line(outDir,logFile,string_format("Vehicle-specific RTV graph build time = %f.", elapsed_seconds.count()));
 }
@@ -615,10 +616,11 @@ void RTVGraph::sort_edges() {
 		auto iter = tIdx_vCostIdxes.find(indices[i]);
 		if (iter != tIdx_vCostIdxes.end()) {
 			sort(iter->second.begin(), iter->second.end());
+			iter->second.resize(min(static_cast<int>(iter->second.size()),max_v_per_req));
+			iter->second.shrink_to_fit();
 		}
-		iter->second.resize(min(static_cast<int>(iter->second.size()),max_v_per_req));
-		iter->second.shrink_to_fit();
 	}
+	std::vector<TIdxComparable>().swap(indices);
 	elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
 	print_line(outDir,logFile,string_format("tIdx_vCostIdxes sorting time = %f.", elapsed_seconds.count()));
 	thisTime = std::chrono::system_clock::now();
@@ -652,7 +654,7 @@ void RTVGraph::prune() {
     std::vector<TIdxComparable> indices;
     indices.reserve(tIdx_vCostIdxes.size());
     std::transform(begin(tIdx_vCostIdxes), end(tIdx_vCostIdxes), std::back_inserter(indices), [](auto const& pair) { return pair.first; });
-    int i;
+    int i = 0;
     #pragma omp parallel for private(i)
     for (i = 0; i < indices.size(); i++) {
         auto iter = tIdx_vCostIdxes.find(indices[i]);
@@ -662,6 +664,7 @@ void RTVGraph::prune() {
         }
     }
 
+	i=0;
     #pragma omp parallel for private(i)
     for (i = 0; i < vIdx_tIdxes.size(); i++) {
         vIdx_tIdxes[i].clear();
@@ -674,6 +677,24 @@ void RTVGraph::prune() {
         int cost = (*iter).second;
         tIdx_vCostIdxes[TIdxComparable(tidx)].push_back(pair<int, pair<int, int>>{cost, pair<int, int>{0, vidx}});
         vIdx_tIdxes[vidx].push_back(pair<int, pair<int, int>>{cost, pair<int, int>{0, tidx}});
+    }
+	
+	map_of_pairs().swap(tvCombos);
+  
+	i=0;
+    #pragma omp parallel for private(i)
+    for (i = 0; i < indices.size(); i++) {
+        auto iter = tIdx_vCostIdxes.find(indices[i]);
+        if (iter != tIdx_vCostIdxes.end()) {
+            iter->second.shrink_to_fit();
+        }
+    }
+	std::vector<TIdxComparable>().swap(indices);
+
+	i=0;
+    #pragma omp parallel for private(i)
+    for (i = 0; i < vIdx_tIdxes.size(); i++) {
+        vIdx_tIdxes[i].shrink_to_fit();
     }
 }
 
