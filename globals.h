@@ -90,3 +90,4 @@ public:
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;
 typedef std::unordered_set<pair<int, int>, PairHash> set_of_pairs;
+typedef std::unordered_set<uos, MyHash> uos_of_uos;

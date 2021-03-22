@@ -99,6 +99,39 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         allPotentialTrips[0].push_back(tripCandidate(uos{ i }));
     }
 
+    const int nVeh = vehicles.size();    
+    const int nReq = requests.size();
+    int fullyConnectedVeh = 0;
+    int partlyConnectedVeh = 0;
+    int totalConnections = 0;
+	int maxConnections = 0;
+    int vIdx = 0;
+    #pragma omp parallel for default(none) private(vIdx) shared(rvGraph, fullyConnectedVeh, partlyConnectedVeh, totalConnections, maxConnections)
+    for (vIdx = 0; vIdx < nVeh; vIdx++) {
+        auto it = rvGraph->car_req_cost.find(vIdx);
+        if (it != rvGraph->car_req_cost.end()) {
+            int nConnex = it->second.size();
+            if (nConnex > 0) {
+                #pragma omp atomic
+                partlyConnectedVeh++;
+                #pragma omp atomic
+                totalConnections += nConnex;
+				if (nConnex == nReq){
+					#pragma omp atomic
+					fullyConnectedVeh++;
+				}
+                #pragma omp critical
+				maxConnections = std::max(nConnex, maxConnections);
+            }
+        }
+    }
+
+	const bool bFullyConnectedVeh = fullyConnectedVeh > 0 ? true : false;
+	const double sparsity = 1.0*totalConnections / (1.0*(partlyConnectedVeh * nReq ));
+	print_line(outDir,logFile,string_format("%d vehicles, %d requests, %d fully connected vehicles, %d most connected (%f), %f percent dense.", nVeh, nReq, fullyConnectedVeh, maxConnections, maxConnections*1.0/nReq, sparsity));
+	const bool bSparseTwo = (!bFullyConnectedVeh) && (sparsity < 0.8);
+	const bool bSparseThree = (!bFullyConnectedVeh) && (sparsity < 0.001);
+	
 	auto time2 = std::chrono::system_clock::now();
     int travelCounter = 0;
     int lastSizeSize = requests.size();
@@ -113,37 +146,91 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         //print_line(outDir,logFile,string_format("Starting to build potential %d-request combinations.", k));                                             
 		//value: indices within allPotentialTrips[k-2]
         if (k == 2) {
-            set_of_pairs sop;
-            sop.reserve(lastSizeSize* (lastSizeSize - 1) / 2);
-            int vIdx = 0;
-            const int nVeh = vehicles.size();
-            #pragma omp parallel for default(none) private(vIdx) shared(sop, k, rvGraph)
-            for (vIdx = 0; vIdx < nVeh; vIdx++) {
-                auto it = rvGraph->car_req_cost.find(vIdx);
-                if (it == rvGraph->car_req_cost.end()) continue;
-                vector<pair<int, int>> vPair;
-                vPair.reserve(it->second.size() * (it->second.size() - 1) / 2);
-                map<int, int>::iterator i, j, end = (*it).second.end();
-                for (i = (*it).second.begin(); i != end; ++i)
-                {
-                    j = i;
-                    j++;
-                    for (; j != end; ++j)
-                        vPair.push_back(std::make_pair(i->first, j->first));
+            if (bSparseTwo) {
+				print_line(outDir,logFile,std::string("Enumerating sparse 2"));
+				set_of_pairs sop;
+				sop.reserve(lastSizeSize* (lastSizeSize - 1) / 2);
+				int vIdx2 = 0;
+				#pragma omp parallel for default(none) private(vIdx2) shared(sop, k, rvGraph)
+				for (vIdx2 = 0; vIdx2 < nVeh; vIdx2++) {
+					auto it = rvGraph->car_req_cost.find(vIdx2);
+					if (it == rvGraph->car_req_cost.end()) continue;
+					vector<pair<int, int>> vPair;
+					vPair.reserve(it->second.size() * (it->second.size() - 1) / 2);
+					map<int, int>::iterator i, j, end = (*it).second.end();
+					for (i = (*it).second.begin(); i != end; ++i)
+					{
+						j = i;
+						j++;
+						for (; j != end; ++j)
+							vPair.push_back(std::make_pair(i->first, j->first));
+					}
+					#pragma omp critical(insertTripPair)
+					sop.insert(vPair.begin(), vPair.end());
+					vector<pair<int, int>>().swap(vPair);
+					sop.rehash(sop.size());
+				}
+				std::vector<pair<uos,pair<int, uos>>> allCombosOfTwo;
+				allCombosOfTwo.reserve(sop.size());
+				for (auto it = sop.begin(); it != sop.end(); it++) {
+					allCombosOfTwo.push_back(pair<uos, pair<int, uos>>{uos{ it->first, it->second }, pair<int, uos>{1, uos{ it->first, it->second }}});
+				}
+				set_of_pairs().swap(sop);
+				newTrips.insert(allCombosOfTwo.begin(), allCombosOfTwo.end());
+				std::vector<pair<uos, pair<int, uos>>>().swap(allCombosOfTwo);
+			}
+			else {
+				print_line(outDir,logFile,std::string("Enumerating dense 2"));
+                std::vector<pair<uos, pair<int, uos>>> allCombosOfTwo;
+                allCombosOfTwo.reserve(lastSizeSize * (lastSizeSize - 1) / 2);
+                for (int i = 0; i < lastSizeSize; i++) {
+                    for (int j = i + 1; j < lastSizeSize; j++) {
+                        allCombosOfTwo.push_back(pair<uos, pair<int, uos>>{uos{ i, j }, pair<int, uos>{1, uos{ i,j }}});
+                    }
                 }
-                #pragma omp critical(insertTripPair)
-                sop.insert(vPair.begin(), vPair.end());
+                newTrips.insert(allCombosOfTwo.begin(), allCombosOfTwo.end());
+				std::vector<pair<uos, pair<int, uos>>>().swap(allCombosOfTwo);
             }
-			std::vector<pair<uos,pair<int, uos>>> allCombosOfTwo;
-			allCombosOfTwo.reserve(sop.size());
-            for (auto it = sop.begin(); it != sop.end(); it++) {
-                allCombosOfTwo.push_back(pair<uos, pair<int, uos>>{uos{ it->first, it->second }, pair<int, uos>{1, uos{ it->first, it->second }}});
-            }
-            newTrips.insert(allCombosOfTwo.begin(), allCombosOfTwo.end());
-			set_of_pairs().swap(sop);
-			vector<pair<uos,pair<int, uos>>>().swap(allCombosOfTwo);
         }
         else {
+            if (bSparseThree && (k == 3)) {
+				print_line(outDir,logFile,std::string("Enumerating sparse 3"));
+                uos_of_uos sop;
+                sop.reserve((lastSizeSize * (lastSizeSize - 1) * (lastSizeSize - 2) / 3)*sparsity*2);
+                int vIdx = 0;
+                const int nVeh = vehicles.size();
+                #pragma omp parallel for default(none) private(vIdx) shared(sop, k, rvGraph)
+                for (vIdx = 0; vIdx < nVeh; vIdx++) {
+                    auto it = rvGraph->car_req_cost.find(vIdx);
+                    if (it == rvGraph->car_req_cost.end()) continue;
+                    vector<uos> vUos;
+                    vUos.reserve(it->second.size() * (it->second.size() - 1) * (it->second.size() - 2) / 3);
+                    map<int, int>::iterator i, j, l, end = (*it).second.end();
+                    for (i = (*it).second.begin(); i != end; ++i)
+                    {
+                        j = i;
+                        j++;
+                        for (; j != end; ++j) {
+                            l = j;
+                            l++;
+                            for (; l != end; ++l)
+                                vUos.push_back(uos{ i->first, j->first, l->first });
+                        }
+                    }
+                    #pragma omp critical(insertTripPair)
+                    sop.insert(vUos.begin(), vUos.end());
+                    vector<uos>().swap(vUos);
+                }
+                std::vector<pair<uos, pair<int, uos>>> allCombosOfThree;
+                allCombosOfThree.reserve(sop.size());
+                for (auto it = sop.begin(); it != sop.end(); it++) {
+                    auto itSop = it->begin();
+                    allCombosOfThree.push_back(pair<uos, pair<int, uos>>{*it, pair<int, uos>{0, uos{ *itSop, *(++itSop), *(++itSop) }}});
+                }
+				uos_of_uos().swap(sop);
+                newTrips.insert(allCombosOfThree.begin(), allCombosOfThree.end());
+                std::vector<pair<uos, pair<int, uos>>>().swap(allCombosOfThree);
+			}
             /*
             When generating trips of size 3:
             Only need to look for pairwise combos of size=2 trips that have overlap = 1 request.
@@ -163,8 +250,9 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			k=4: 12 & 23 & 13 & 14 & 24 & 34 have to be in 2, 1 & 2 & 3 have to each be in 3, 2 has to be in 3
 			k=5: 123 has to be in 2, 12 has to be in 3, 1 has to be in 4
             */
+			print_line(outDir,logFile,string_format("Enumerating potential %d-trips.",k));
             const int twoSmallerSize = allPotentialTrips[k - 3].size();
-            int m;
+            int m = 0;
             #pragma omp parallel for private(m) shared(k, newTrips)
             for (m = 0; m < twoSmallerSize; m++) {
                 const tripCandidate& dependency = allPotentialTrips[k - 3][m];
@@ -181,19 +269,30 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                         for (auto it = trip2.begin(); it != trip2.end(); it++) {
                             if (tripUnion.emplace(*it).second) break;
                         } 
-                        #pragma omp critical (updateNewTrips)
-                        {
-                        auto& it = newTrips[tripUnion];
-                        it.first++;
-                        it.second.insert(indexI);
-                        it.second.insert(indexJ);
+                        if (bSparseThree && (k == 3)) {
+                                auto it = newTrips.find(tripUnion);
+                                if (it != newTrips.end()) {
+                                    #pragma omp critical(updateThree1)
+                                    (*it).second.first++;
+                                    #pragma omp critical(updateThree2)
+                                    (*it).second.second.insert({ indexI, indexJ });
+                                }
+                            }
+                        else {
+                            #pragma omp critical (updateNewTrips)
+                            {
+                                auto& it = newTrips[tripUnion];
+                                it.first++;
+                                it.second.insert({ indexI, indexJ });
+                            }
                         } 
                     }
                 }
             }
         }
         //put the pointers in the vector
-
+		
+		print_line(outDir,logFile,string_format("Enumerated potential %d-trips.",k));
 
         int thisSizeCounter = 0;
         const int vntsize = newTrips.size();
@@ -261,7 +360,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			));
         lastSizeSize = thisSizeCounter;
     }
-	int k;
+	int k = 0;
     #pragma omp parallel for default(none)
     for (k = 0; k < allPotentialTrips.size(); k++) {
         allPotentialTrips[k].shrink_to_fit();
@@ -518,6 +617,7 @@ void RTVGraph::sort_edges() {
 			sort(iter->second.begin(), iter->second.end());
 		}
 		iter->second.resize(min(static_cast<int>(iter->second.size()),max_v_per_req));
+		iter->second.shrink_to_fit();
 	}
 	elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
 	print_line(outDir,logFile,string_format("tIdx_vCostIdxes sorting time = %f.", elapsed_seconds.count()));
@@ -527,6 +627,7 @@ void RTVGraph::sort_edges() {
 	for (i = 0; i < vIdx_tIdxes.size(); i++) {
 		sort(vIdx_tIdxes[i].begin(), vIdx_tIdxes[i].begin());
 		vIdx_tIdxes[i].resize(min(static_cast<int>(vIdx_tIdxes[i].size()),min_req_per_v));
+		vIdx_tIdxes[i].shrink_to_fit();
 	}
 	elapsed_seconds = (std::chrono::system_clock::now()-thisTime);
 	print_line(outDir,logFile,string_format("vIdx_tIdxes sorting time = %f.", elapsed_seconds.count()));
@@ -547,7 +648,7 @@ void RTVGraph::prune() {
             tvCombos.emplace(std::pair<int, int>{vIdx_tIdxes[i][j].second.second, i}, vIdx_tIdxes[i][j].first); //{trip, vehicle}, cost
         }
     }
-
+ 
     std::vector<TIdxComparable> indices;
     indices.reserve(tIdx_vCostIdxes.size());
     std::transform(begin(tIdx_vCostIdxes), end(tIdx_vCostIdxes), std::back_inserter(indices), [](auto const& pair) { return pair.first; });

@@ -110,30 +110,25 @@ int main(int argc, char* argv[]) {
         std::set<std::pair<int, int>> ongoingLocs;
         std::set<int> allToAll1;
         std::set<int> allToAll2;
-        map_of_pairs dist;
         for (int i = 0; i < vehicles.size(); i++) {
             const int vehLoc = vehicles[i].get_location();
             allToAll1.emplace(vehLoc);
             for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
-                ongoingLocs.emplace(std::pair{ vehLoc, vehicles[i].passengers[j].start });
-                ongoingLocs.emplace(std::pair{ vehLoc, vehicles[i].passengers[j].end });
-                ongoingLocs.emplace(std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end });
-                allToAll2.emplace(vehicles[i].passengers[j].start);
-                allToAll2.emplace(vehicles[i].passengers[j].end);
+                ongoingLocs.insert({
+                    std::pair{vehLoc, vehicles[i].passengers[j].start },
+                    std::pair{ vehLoc, vehicles[i].passengers[j].end },
+                    std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end } });
+                allToAll2.insert({ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end});
             }
         }
         for (int i = 0; i < requests.size(); i++) {
             allToAll1.emplace(requests[i].start);
-            allToAll2.emplace(requests[i].start);
-            allToAll2.emplace(requests[i].end);
+            allToAll2.insert({ requests[i].start, requests[i].end });
         }
-        dist = reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2);
-		ongoingLocs.clear();
-		allToAll1.clear();
-		allToAll2.clear();
-		set<pair<int, int>>().swap(ongoingLocs);
-		set<int>().swap(allToAll1);
-		set<int>().swap(allToAll2);
+        map_of_pairs dist{ ongoingLocs.size() +
+            (allToAll1.size() * (allToAll1.size() - 1) / 2) +
+            (allToAll2.size() * (allToAll2.size() - 1) / 2) };
+        reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2, dist);
 
         print_line(outDir, logFile, string_format("Dist map size = %f", dist.size()));
 		beforeTime = std::chrono::system_clock::now();

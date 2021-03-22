@@ -11,6 +11,7 @@
 #include<chrono>
 #include "util.h"
 #include<set>
+#include<omp.h>
 #include<cmath>
 #include<queue>
 #include<sys/timeb.h>
@@ -603,12 +604,8 @@ void init_dist_map(map_of_pairs& dist_map)
 	save_dist_map(dist_map);
 }
 
-map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
-	const set<int>& allToAll1, const set<int>& allToAll2) {
-	map_of_pairs mop{ ongoingLocs.size() +
-		(allToAll1.size() * (allToAll1.size() - 1) / 2) +
-		(allToAll2.size() * (allToAll2.size() - 1) / 2) };
-
+void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
+	set<int>& allToAll1, set<int>& allToAll2, map_of_pairs& mop) {
 	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
 		if ((*it).first == (*it).second) continue;
 		if ((*it).first < (*it).second) {
@@ -618,24 +615,31 @@ map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
 			mop.emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
 		}
 	}
-	vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
-	for (int i = 0; i < vec1.size(); i++) {
+	set<pair<int, int>>().swap(ongoingLocs);
+	vector<int> vec1{allToAll1.begin(), allToAll1.end()};
+	set<int>().swap(allToAll1);
+	const int vec1Size = vec1.size();
+	for (int i = 0; i < vec1Size; i++) {
 		int this_s = vec1[i];
+		int this_t = 0;
 		for (int j = i + 1; j < vec1.size(); j++) {
-			int this_t = vec1[j];
+			this_t = vec1[j];
 			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
 		}
 	}
-	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
-	for (int i = 0; i < vec2.size(); i++) {
+	vector<int> vec2{allToAll2.begin(), allToAll2.end()};
+	set<int>().swap(allToAll2);
+	const int vec2Size = vec2.size();
+	for (int i = 0; i < vec2Size; i++) {
 		int this_s = vec2[i];
+		int this_t = 0;
 		for (int j = i + 1; j < vec2.size(); j++) {
-			int this_t = vec2[j];
+			this_t = vec2[j];
 			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
 		}
 	}
+	vector<int>().swap(vec2);
 	mop.rehash(mop.size());
-	return mop;
 }
 
 int search(int s,int t) {
