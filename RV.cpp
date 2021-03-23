@@ -33,35 +33,33 @@ void RVGraph::prune() {
 
 RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pairs& dist) {
     /* Get arc costs and add arcs for request-vehicle matches*/
-    Request* reqs[1];
     int connected = 0;
     int disconnected = 0;
-    map<int, int> requestConnections;
-    map<int, int> carConnections;
-    for (int i = 0; i < vehicles.size(); i++) {
-        carConnections[i] = 0;
+    int i = 0;
+    const int nVeh = vehicles.size();
+    const int nReq = requests.size();
+    #pragma omp parallel for default(none) private(i) shared(vehicles, requests, dist)
+    for (i = 0; i < nVeh; i++) {
         if (vehicles[i].isAvailable()) {
-            for (int j = 0; j < requests.size(); j++) {
-                reqs[0] = &requests[j];
+            for (int j = 0; j < nReq; j++) {
+                Request thisReq = requests[j];
+				Request* reqs[1];
+                reqs[0] = &thisReq;
                 TravelHelper th;
                 int cost = th.travel(vehicles[i], reqs, 1, dist, false);
                 if (cost >= 0) {
+                    #pragma omp critical (addevr)
                     add_edge_vehicle_req(i, j, cost);
-                    connected++;
-                    requestConnections[j]++; //TODO need to initialize map as 1
-                    carConnections[i]++;
-                }
-                else {
-                    disconnected++;
                 }
             }
         }
     }
+    /*
     map<bool, int> carCounts;
     for (auto it = carConnections.begin(); it != carConnections.end(); it++) {
         carCounts[it->second > 0]++;
     }
-/*   TODO fix map<bool, int> requestsCounts;
+   TODO fix map<bool, int> requestsCounts;
     for (auto it = requestConnections.begin(); it != requestConnections.end(); it++) {
         requestsCounts[it->second > 0]++;
     }
@@ -79,8 +77,4 @@ bool RVGraph::has_vehicle(int vehicle) {
 
 int RVGraph::get_vehicle_num() {
     return int(car_req_cost.size());
-}
-
-void RVGraph::get_vehicle_edges(int vehicle, map<int, int>& edges) {
-    edges = car_req_cost[vehicle];
 }

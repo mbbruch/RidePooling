@@ -371,8 +371,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 
 void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, RVGraph* rvGraph, vector<Request>& requests, map_of_pairs& dist) {
 
-    map<int, int> req_costs;
-    rvGraph->get_vehicle_edges(vehicleId, req_costs); //map of req to cost
+
+    const map<int, int>&  req_costs = rvGraph->get_vehicle_edges(vehicleId); //map of req to cost
 	
     int numPreviousSize = 0;
     vector<tripCandidate> thisSizeVec = allPotentialTrips[0];
@@ -510,12 +510,11 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
 	for (int i = 0; i < vehicles.size(); i++) {
 		if (rvGraph->has_vehicle(i)) {
 			vehIDToVehIdx[i] = addVehicleId(i);
-		}
-		map<int, int> edges;
-		rvGraph->get_vehicle_edges(i, edges); //req, cost
-		for(auto it = edges.begin(); it != edges.end(); it++){
-            uos tempUOS{ it->first };
-			add_edge_trip_vehicle(tempUOS, vehIDToVehIdx[i], it->second);
+			const map<int, int>& edges = rvGraph->get_vehicle_edges(i); //req, cost
+			for(auto it = edges.begin(); it != edges.end(); it++){
+				uos tempUOS{ it->first };
+				add_edge_trip_vehicle(tempUOS, vehIDToVehIdx[i], it->second);
+			}
 		}
     }
 

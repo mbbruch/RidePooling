@@ -24,5 +24,5 @@ public:
 
     int get_vehicle_num();
 
-    void get_vehicle_edges(int vehicle, map<int, int>& edges);
+    const map<int,int>& get_vehicle_edges(int vehicle) const { return car_req_cost.find(vehicle)->second; }
 };

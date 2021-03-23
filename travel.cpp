@@ -122,10 +122,6 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                     vehicle.updateOccupancyTracker(occupancyChanges, newTime, 1);
 
                     // record who got on
-
-                    if (reqs[i]->start == 566 && reqs[i]->end == 2956) {
-                        int x = 5;
-                    }
                     getOns.push_back(make_pair(i,newTime));
                 }
             }

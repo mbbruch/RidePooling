@@ -18,6 +18,7 @@
 #include<metis.h>
 #include "GPtree.h"
 #include "globals.h"
+#include "util.h"
 int times[10];//辅助计时变量；
 int cnt_type0, cnt_type1;
 
@@ -604,19 +605,18 @@ void init_dist_map(map_of_pairs& dist_map)
 	save_dist_map(dist_map);
 }
 
-void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
+void reinitialize_dist_map(set<set<int>>& ongoingLocs,
 	set<int>& allToAll1, set<int>& allToAll2, map_of_pairs& mop) {
-
 	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
-		if ((*it).first == (*it).second) continue;
-		if ((*it).first < (*it).second) {
-			mop.try_emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
-		}
-		else {
-			mop.try_emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
-		}
+		if(it->size() != 2) continue;
+		auto itInner = it->begin();
+		int this_s = *itInner;
+		int this_t = *(++itInner);
+		
+		print_line(outDir, logFile,string_format("S: %d, T: %d.",this_s,this_t));
+		mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
 	}
-	set<pair<int, int>>().swap(ongoingLocs);
+	set<set<int>>().swap(ongoingLocs);
 	vector<int> vec1{allToAll1.begin(), allToAll1.end()};
 	set<int>().swap(allToAll1);
 	
@@ -1363,10 +1363,7 @@ void G_Tree::write()
 
 void G_Tree::add_border(int x, int id, int id2)//向x点的border集合中加入一个新真实id,在子图的虚拟id为id2,并对其标号为border中的编号
 {
-	if (node[x].borders.find(id) == node[x].borders.end())
-	{
-		node[x].borders.emplace(id,pair<int,int>((int)node[x].borders.size(), id2));
-	}
+	node[x].borders.try_emplace(id,pair<int,int>((int)node[x].borders.size(), id2));
 }
 
 void G_Tree::make_border(int x, const vector<int>& color)//计算点x的border集合，二部图之间的边集为E
@@ -1764,20 +1761,10 @@ void G_Tree::push_borders_down_cache(int x, int y, int bound)//将S到结点x边
 	for (int i = 0; i<tot0; i++)
 	{
 		int i_ = begin[i];
-		int j_ = 0;
-		int tocompare = 0;
-		int dist2i = (*dist2)[i_];
-		int* disti = dist[i_];
 		for (int j = 0; j<tot1; j++)
 		{
-			j_ = end[j];
-			tocompare = dist2i + disti[j_];
-			if ((*dist2)[j_] > tocompare)
-				(*dist2)[j_] = tocompare;
-			/*
 			if ((*dist2)[end[j]]>(*dist2)[i_] + dist[i_][end[j]])
 				(*dist2)[end[j]] = (*dist2)[i_] + dist[i_][end[j]];
-			*/
 		}
 	}
 	delete[] begin;
@@ -1796,54 +1783,25 @@ void G_Tree::push_borders_brother_cache(int x, int y, int bound)//将S到结点x
 	node[y].cache_id = S;
 	node[y].cache_bound = bound;
 	vector<int>id_LCA[2], id_now[2];//子结点候选border在LCA中的border序列编号,子结点候选border在内部的border序列的编号
-	int nodexcacheid = node[x].cache_id;
-	int nodepbifi = 0;
 	for (int t = 0; t<2; t++)
 	{
-		Node& nodep = (t == 0) ? node[x] : node[y];
-		for (i = j = 0; i < (int)nodep.borders.size(); i++)
-		{
-			nodepbifi = nodep.border_in_father[i];
-			if (nodepbifi != -1)
-				if ((t == 1 && (Optimization_Euclidean_Cut == false || Euclidean_Dist(nodexcacheid, nodep.border_id[i]) < bound))
-					||
-					(t == 0 && nodep.cache_dist[i] < bound)
-					)
-				{
-					id_LCA[t].push_back(nodepbifi);
-					id_now[t].push_back(i);
-				}
-		}
-
-		/*
-		vector<int>& idnowt = id_now[t];
-		vector<int>& idlcat = id_LCA[t];
-		p = (t == 0) ? x : y;
-		int nodepbifi = 0;
+		if (t == 0)p = x;
+		else p = y;
 		for (i = j = 0; i<(int)node[p].borders.size(); i++)
-		nodepbifi = node[p].border_in_father[i];
-		if (nodepbifi != -1)
+			if (node[p].border_in_father[i] != -1)
 				if ((t == 1 && (Optimization_Euclidean_Cut == false || Euclidean_Dist(node[x].cache_id, node[p].border_id[i])<bound)) || (t == 0 && node[p].cache_dist[i]<bound))
 				{
-		idlcat.push_back(nodepbifi);
-		idnowt.push_back(i);
+					id_LCA[t].push_back(node[p].border_in_father[i]);
+					id_now[t].push_back(i);
 				}
-		*/
 	}
 	for (int i = 0; i<node[y].cache_dist.size(); i++)node[y].cache_dist[i] = INF;
-
-	vector<int>& idnow1 = id_now[1];
-	vector<int> & idlca1 = id_LCA[1];
-	for (int i = 0; i < id_LCA[0].size(); i++) {
-		int xdist = node[x].cache_dist[id_now[0][i]];
-		int* thisA = node[LCA].dist.a[id_LCA[0][i]];
-		for (int j = 0; j < id_LCA[1].size(); j++)
+	for (int i = 0; i<id_LCA[0].size(); i++)
+		for (int j = 0; j<id_LCA[1].size(); j++)
 		{
-			int k = xdist + thisA[idlca1[j]];
-			if (k < node[y].cache_dist[idnow1[j]])node[y].cache_dist[idnow1[j]] = k;
+			int k = node[x].cache_dist[id_now[0][i]] + node[LCA].dist.a[id_LCA[0][i]][id_LCA[1][j]];
+			if (k<node[y].cache_dist[id_now[1][j]])node[y].cache_dist[id_now[1][j]] = k;
 		}
-	}
-
 	int** dist = node[y].dist.a;
 	//vector<int>begin,end;//已算出的序列编号,未算出的序列编号
 	int* begin, * end;
@@ -1862,34 +1820,12 @@ void G_Tree::push_borders_brother_cache(int x, int y, int bound)//将S到结点x
 	for (int i = 0; i<tot0; i++)
 	{
 		int i_ = begin[i];
-		int j_ = 0;
-		int tocompare = 0;
-		int dist2i = node[y].cache_dist[i_];
-		int* disti = dist[i_];
 		for (int j = 0; j<tot1; j++)
 		{
-			j_ = end[j];
-			tocompare = dist2i + disti[j_];
-			if (node[y].cache_dist[j_]> tocompare)
-				node[y].cache_dist[j_] = tocompare;
+			if (node[y].cache_dist[end[j]]>node[y].cache_dist[i_] + dist[i_][end[j]])
+				node[y].cache_dist[end[j]] = node[y].cache_dist[i_] + dist[i_][end[j]];
 		}
 	}
-
-	/*
-	* 	for (int i = 0; i<tot0; i++)
-	{
-		int i_ = begin[i];
-		int j_ = 0;
-		int tocompare = 0;
-		int dist2i = (*dist2)[i_];
-		int* disti = dist[i_];
-		for (int j = 0; j<tot1; j++)
-		{
-			j_ = end[j];
-			tocompare = dist2i + disti[j_];
-			if ((*dist2)[j_] > tocompare)
-				(*dist2)[j_] = tocompare;
-	*/
 	delete[] begin;
 	delete[] end;
 	node[y].min_border_dist = INF;
