@@ -109,24 +109,22 @@ int main(int argc, char* argv[]) {
         //all-to-all 2: ongoing request locations + new requestion locations
 		
 		beforeTime = std::chrono::system_clock::now();
-        std::set<std::set<int>> ongoingLocs;
+        std::set<std::pair<int, int>> ongoingLocs;
         std::set<int> allToAll1;
         std::set<int> allToAll2;
         for (int i = 0; i < vehicles.size(); i++) {
             const int vehLoc = vehicles[i].get_location();
+            allToAll1.emplace(vehLoc);
             for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
                 ongoingLocs.insert({
-                    std::set<int>{vehLoc, vehicles[i].passengers[j].start },
-                    std::set<int>{vehLoc, vehicles[i].passengers[j].end },
-                    std::set<int>{vehicles[i].passengers[j].start, vehicles[i].passengers[j].end } });
+                    std::pair{vehLoc, vehicles[i].passengers[j].start },
+                    std::pair{ vehLoc, vehicles[i].passengers[j].end },
+                    std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end } });
                 allToAll2.insert({ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end});
             }
-			for (int j = 0; j < requests.size(); j++) {
-				ongoingLocs.insert(std::set<int>{vehLoc, requests[j].start});
-			}
         }
         for (int i = 0; i < requests.size(); i++) {
-            allToAll1.insert(requests[i].start);
+            allToAll1.emplace(requests[i].start);
             allToAll2.insert({ requests[i].start, requests[i].end });
         }
         map_of_pairs dist{ ongoingLocs.size() +

@@ -18,7 +18,6 @@
 #include<metis.h>
 #include "GPtree.h"
 #include "globals.h"
-#include "util.h"
 int times[10];//辅助计时变量；
 int cnt_type0, cnt_type1;
 
@@ -605,18 +604,18 @@ void init_dist_map(map_of_pairs& dist_map)
 	save_dist_map(dist_map);
 }
 
-void reinitialize_dist_map(set<set<int>>& ongoingLocs,
+void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
 	set<int>& allToAll1, set<int>& allToAll2, map_of_pairs& mop) {
 	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
-		if(it->size() != 2) continue;
-		auto itInner = it->begin();
-		int this_s = *itInner;
-		int this_t = *(++itInner);
-		
-		print_line(outDir, logFile,string_format("S: %d, T: %d.",this_s,this_t));
-		mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+		if ((*it).first == (*it).second) continue;
+		if ((*it).first < (*it).second) {
+			mop.try_emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
+		}
+		else {
+			mop.try_emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
+		}
 	}
-	set<set<int>>().swap(ongoingLocs);
+	set<pair<int, int>>().swap(ongoingLocs);
 	vector<int> vec1{allToAll1.begin(), allToAll1.end()};
 	set<int>().swap(allToAll1);
 	
