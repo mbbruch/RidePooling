@@ -24,5 +24,4 @@ public:
 		map_of_pairs& dist,
 		int travelled, int nowDelays, int& nowTime, bool decided, bool feasibilityCheck, bool simplestCheck);
 	int travel(Vehicle& vehicle, Request* reqs[], int numReqs, map_of_pairs& dist, bool decided, bool feasibilityCheck = true, bool simplestCheck = false);
-	int getTravelCost() { return ansTravelled * 0.0001; }
 };
