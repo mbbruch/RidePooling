@@ -415,7 +415,7 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
                 TravelHelper th;
                 int cost = th.travel(vehicle, reqs, k, dist, false); // TODO make this return the distance in some cases
                 if (cost >= 0) {
-                    add_edge_trip_vehicle(thisSizeVec[j].requests, vIdx, cost);
+                    add_edge_trip_vehicle(thisSizeVec[j].requests, vIdx, th.getTravelCost());
 					numPreviousSize++;
                 } else {
                     thisSizeVec[j].ruledOut = true;
@@ -572,7 +572,7 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
     model.setObjective(objective, GRB_MINIMIZE);
 
     model.set("TimeLimit", "300.0");
-    model.set("MIPGap", "0.0025");
+    model.set("MIPGap", "0.001");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
 	model.set("NodeFileStart","1.0");
@@ -776,7 +776,8 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     }
     printf("\n");
     */
-    vector<vector<pair<int, pair<int,int>> >::iterator> edgeIters, edgeEnds;
+    int maxCostTrip = 0;
+    vector<vector<pair<int, pair<int, int>> >::iterator> edgeIters, edgeEnds;
     for (auto iterTV = tIdx_vCostIdxes.begin(); iterTV != tIdx_vCostIdxes.end(); iterTV++) {
         if (tripSize > trips[iterTV->first.tIdx].size()) {
             greedy_assign_same_trip_size(
@@ -791,11 +792,14 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
         edgeIters.push_back(iterTV->second.begin());
         edgeEnds.push_back(iterTV->second.end());
         tIdxes.push_back(iterTV->first.tIdx);
+        maxCostTrip = max(maxCostTrip, iterTV->second[iterTV->second.size() - 1].first); 
     }
     greedy_assign_same_trip_size(
         edgeIters, edgeEnds, tIdxes, assignedRIds, assignedVIdxes,
         epsilon, tempLookupRtoT
     );
+
+    int thisPenalty = maxCostTrip * 10; //penalty also defined in globals.h/.cpp
 
     // build objective expression
     GRBLinExpr objective = 0;
@@ -803,12 +807,12 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     for (int tIdx = 0; tIdx < numTrips; tIdx++) {
         vector<pair<int, pair<int,int>> >& vCostIdxes = tIdx_vCostIdxes[TIdxComparable(tIdx)];
 		int reqsInTrip = trips[tIdx].size();
-		for(int vehIdx = 0; vehIdx < vCostIdxes.size(); vehIdx++){
-			objective += epsilon[tIdx][vehIdx] * (vCostIdxes[vehIdx].first - reqsInTrip * penalty);
+        for (int vehIdx = 0; vehIdx < vCostIdxes.size(); vehIdx++) {
+            objective += epsilon[tIdx][vehIdx] * (vCostIdxes[vehIdx].first - reqsInTrip * thisPenalty);
 		}
     }
     model.set("TimeLimit", "1500.0");
-    model.set("MIPGap", "0.0025");
+    model.set("MIPGap", "0.001");
     model.set("OutputFlag", "1");
     model.set("LogToConsole", "0");
 	model.set("Method","3");

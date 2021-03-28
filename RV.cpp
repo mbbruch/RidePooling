@@ -49,7 +49,7 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pa
                 int cost = th.travel(vehicles[i], reqs, 1, dist, false);
                 if (cost >= 0) {
                     #pragma omp critical (addevr)
-                    add_edge_vehicle_req(i, j, cost);
+                    add_edge_vehicle_req(i, j, th.getTravelCost());
                 }
             }
         }
