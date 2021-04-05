@@ -102,7 +102,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
     int totalConnections = 0;
 	int maxConnections = 0;
     int vIdx = 0;
-    #pragma omp parallel for default(none) private(vIdx) shared(rvGraph, fullyConnectedVeh, partlyConnectedVeh, totalConnections, maxConnections)
+    set<pair<int, int>> vehConnex;
+    #pragma omp parallel for default(none) private(vIdx) shared(rvGraph, vehConnex, fullyConnectedVeh, partlyConnectedVeh, totalConnections, maxConnections)
     for (vIdx = 0; vIdx < nVeh; vIdx++) {
         auto it = rvGraph->car_req_cost.find(vIdx);
         if (it != rvGraph->car_req_cost.end()) {
@@ -116,13 +117,14 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 					#pragma omp atomic
 					fullyConnectedVeh++;
 				}
-                #pragma omp critical
-				maxConnections = std::max(nConnex, maxConnections);
+                #pragma omp critical(insertVehConnex)
+                vehConnex.insert(make_pair(-nConnex, vIdx));
             }
         }
     }
 
 	const bool bFullyConnectedVeh = fullyConnectedVeh > 0 ? true : false;
+	const double bFractionConnected = fullyConnectedVeh/nVeh;
 	const double sparsity = 1.0*totalConnections / (1.0*(partlyConnectedVeh * nReq ));
 	print_line(outDir,logFile,string_format("%d vehicles, %d requests, %d fully connected vehicles, %d most connected (%f), %f percent dense.", nVeh, nReq, fullyConnectedVeh, maxConnections, maxConnections*1.0/nReq, sparsity));
 	const bool bSparseTwo = (!bFullyConnectedVeh) && (sparsity < 0.8);
@@ -248,17 +250,18 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             Can iterate over trips of size 2 where dependentTrips.size()>=2, and get all the pairwise combos of size=3 trips from that.
 			How many times? They need to have FOUR (k) pairwise combos of trips of size 3 (k-1) with overlap 2 (k-2).
 			eg: (12, 23, 13) or (123, 124, 134, 234) or (1234, 1235, 1245, 1345, 2345) or (12345, 12346, 12356, 12456, 13456, 23456)
-			k=3: 1 has to be in 2
-			k=4: 12 & 23 & 13 & 14 & 24 & 34 have to be in 2, 1 & 2 & 3 have to each be in 3, 2 has to be in 3
+            k=3: for 123 to work, 12 & 13 & 23 have to be in 1, 1 & 2 & 3 have to be in 2
+            k=4: for 1234 to work, 123 & 124 & 134 & 234 have to be in 1, 12 & 23 & 13 & 14 & 24 & 34 have to be in 2, 1 & 2 & 3 & 4 have to each be in 3
 			k=5: 123 has to be in 2, 12 has to be in 3, 1 has to be in 4
+            for 12345 to work, 1234, 1235
+            for 123456 to work: 1234, 1235, 1236
             */
 			print_line(outDir,logFile,string_format("Enumerating potential %d-trips.",k));
             const int twoSmallerSize = allPotentialTrips[k - 3].size();
-            int m = 0;
-            #pragma omp parallel for private(m) shared(k, newTrips)
+			int m = 0;
+            #pragma omp parallel for default(none) private(m) shared(k, newTrips)
             for (m = 0; m < twoSmallerSize; m++) {
-                const tripCandidate& dependency = allPotentialTrips[k - 3][m];
-                const vector<int>& dependentTrips = dependency.dependentTrips;
+				const vector<int>& dependentTrips = allPotentialTrips[k - 3][m].dependentTrips;
                 int numDependentTrips = dependentTrips.size();
                 if (numDependentTrips < 2) continue;
                 for (int i = 0; i < numDependentTrips; i++) {
@@ -290,30 +293,50 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                         } 
                     }
                 }
-            }
+            } 
         }
         //put the pointers in the vector
 		
 		print_line(outDir,logFile,string_format("Enumerated potential %d-trips.",k));
 
-        int thisSizeCounter = 0;
-        const int vntsize = newTrips.size();
-        vector<pair<const uos, pair<int, uos>>*> elements;
-        elements.reserve(vntsize);
-//        for (auto thisIt = newTrips.begin(); thisIt != newTrips.end(); ++thisIt) {
-//            elements.push_back(&(*thisIt));
-//        }
-        std::transform(newTrips.begin(), newTrips.end(), std::back_inserter(elements),
-            [](pair<const uos, pair<int, uos>>& n) { return &n; }
-        );
-		
         //print_line(outDir,logFile,string_format("Starting to check feasibility of %d %d-request combinations.", vntsize, k));    
 
+		int thisSizeCounter = 0;
         if (completeCliques >= 0) {
+			vector<pair<const uos, pair<int, uos>>*> elements;
+			elements.reserve(newTrips.size());
+			for(auto it = newTrips.begin(); it != newTrips.end(); it++){
+				if(it->second.second.size()==k){ //complete clique requirement: all k subsets of size k-1 must be in here
+					elements.push_back(&(*it));
+				}
+			}
+			elements.shrink_to_fit();
+			const int elementSize = elements.size();
             //std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
-            #pragma omp parallel for default(none) shared(newTrips, elements, requests, k, dist,thisSizeCounter)
-            for (int j = 0; j < vntsize; j++) {
-                if (k > 2 && elements[j]->second.first < k) continue; //complete clique requirement: all k subsets of size k-1 must be in here
+            #pragma omp parallel for default(none) shared(newTrips, elements, requests, k, dist,thisSizeCounter, vehConnex, rvGraph)
+            for (int j = 0; j < elementSize; j++) {
+                if (!bFullyConnectedVeh && !(bSparseTwo && k == 2)) { 
+                    const auto endRC = rvGraph->req_car.end();
+                    bool bVehicleIncludes = false;
+                    for (auto itVeh = vehConnex.begin(); itVeh != vehConnex.end(); itVeh++) {
+                        bool bMatch = true;
+                        for (auto itr = elements[j]->first.begin(); itr != elements[j]->first.end(); itr++) {
+                            if (rvGraph->req_car.find(make_pair(*itr, itVeh->second)) == endRC) {
+                                bMatch = false;
+                                break;
+                            }
+                        }
+                        if (bMatch == true) {
+                            bVehicleIncludes = true;
+                            break;
+                        }
+                    }
+
+                    if (bVehicleIncludes = false) {
+                        continue;
+                    }
+                }
+
                 vector<Request> copiedRequests;
                 for (auto itr = elements[j]->first.begin(); itr != elements[j]->first.end(); itr++) {
                     copiedRequests.push_back(requests[*itr]);
@@ -349,12 +372,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                     }
                 }
             }
-
-            //For each vehicle check for routing feasibility and add_edge_trip_vehicle
-
-            
+			vector<pair<const uos, pair<int, uos>>*>().swap(elements);
         }
-		vector<pair<const uos, pair<int, uos>>*>().swap(elements);
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-startOfSizeK;
 		print_line(outDir,logFile,string_format("Potential %d-trips built (%f seconds, %d/%d potential trips kept).", 
 			k,
@@ -397,6 +416,7 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
 
     // FIRST, TODO: check and see how/whether this code actually uses the in-progress trips?    
     Vehicle& vehicle = vehicles[vehicleId];
+	const auto endRC = rvGraph->req_car.end();
     for (int k = 2; k <= max_trip_size; k++) {
         // Ex: to combine 4 requests, previous entry is 3-way combos, of which we need at least 4: 1-2-3, 1-2-4, 1-3-4, 2-3-4
         if (numPreviousSize < k || !bNextSizeExists) break;
@@ -409,17 +429,28 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
                 std::vector<int> inThisTrip(thisSizeVec[j].requests.begin(), thisSizeVec[j].requests.end());
 				Request* reqs[max_trip_size];
 				int itridx = 0;
+				bool bRuledOut = false;
+			 
                 for (auto itr = thisSizeVec[j].requests.begin(); itr != thisSizeVec[j].requests.end(); itr++) {
+					if((2==k) && rvGraph->req_car.find(make_pair(*itr,vIdx)) == endRC){ //TODO: SHOULD BE vehicleID
+						bRuledOut = true;
+						break;
+					}
 					reqs[itridx++] = &requests[*itr];
 				}
-                TravelHelper th;
-                int cost = th.travel(vehicle, reqs, k, dist, false); // TODO make this return the distance in some cases
-                if (cost >= 0) {
-                    add_edge_trip_vehicle(thisSizeVec[j].requests, vIdx, th.getTravelCost());
-					numPreviousSize++;
-                } else {
-                    thisSizeVec[j].ruledOut = true;
-                }
+				if(bRuledOut){
+					thisSizeVec[j].ruledOut = true;
+				}
+				else{
+					TravelHelper th;
+					int cost = th.travel(vehicle, reqs, k, dist, false); // TODO make this return the distance in some cases
+					if (cost >= 0) {
+						add_edge_trip_vehicle(thisSizeVec[j].requests, vIdx, th.getTravelCost());
+						numPreviousSize++;
+					} else {
+						thisSizeVec[j].ruledOut = true;
+					}
+				}
             }
             if (thisSizeVec[j].ruledOut && bNextSizeExists) {
                 for (int i = 0; i < thisSizeVec[j].dependentTrips.size(); i++) {

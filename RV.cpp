@@ -13,6 +13,8 @@ using namespace std;
 void RVGraph::add_edge_vehicle_req(int vehicle, int req, int cost) {
     car_req_cost[vehicle][req] = cost;
     req_cost_car[req].push_back(make_pair(cost, vehicle));
+    req_car.insert(make_pair(req, vehicle));
+    entries++;
 }
 
 void RVGraph::prune() {
@@ -36,6 +38,7 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pa
     int connected = 0;
     int disconnected = 0;
     int i = 0;
+	entries = 0;
     const int nVeh = vehicles.size();
     const int nReq = requests.size();
     #pragma omp parallel for default(none) private(i) shared(vehicles, requests, dist)
@@ -54,6 +57,7 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pa
             }
         }
     }
+    req_car.rehash(entries);
     /*
     map<bool, int> carCounts;
     for (auto it = carConnections.begin(); it != carConnections.end(); it++) {

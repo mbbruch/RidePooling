@@ -5,6 +5,7 @@
 #include <vector>
 #include "Vehicle.h"
 #include "Request.h"
+#include "globals.h"
 
 using namespace std;
 
@@ -17,6 +18,8 @@ class RVGraph {
 public:
     map<int, map<int, int> > car_req_cost;
     map<int, vector<pair<int, int> > > req_cost_car;
+    set_of_pairs req_car;
+    int entries;
     RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests,
         map_of_pairs& dist);
 
