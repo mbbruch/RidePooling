@@ -605,49 +605,33 @@ void init_dist_map(map_of_pairs& dist_map)
 }
 
 void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
-	set<int>& allToAll1, set<int>& allToAll2, map_of_pairs& mop) {
-	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
-		if ((*it).first == (*it).second) continue;
-		if ((*it).first < (*it).second) {
-			mop.try_emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
-		}
-		else {
-			mop.try_emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
-		}
-	}
+	set<int>& allToAll, map_of_pairs& mop) {
+
+	vector<pair<int, int>> vec1(ongoingLocs.begin(), ongoingLocs.end());
 	set<pair<int, int>>().swap(ongoingLocs);
-	vector<int> vec1{allToAll1.begin(), allToAll1.end()};
-	set<int>().swap(allToAll1);
+	vector<int> vec2( allToAll.begin(), allToAll.end() );
+	set<int>().swap(allToAll);
 	
 	int i = 0;
 	const int vec1Size = vec1.size();
-//	#pragma omp parallel for default(none) private(i) shared(vec1, mop, tree)
-	for (int i = 0; i < vec1Size; i++) {
-		int this_s = vec1[i];
-		int this_t = 0;
-		for (int j = i + 1; j < vec1Size; j++) {
-			this_t = vec1[j];
-//			#pragma omp critical(updateMop)
-//			{
-				mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
-//			}
-		}
+	#pragma omp parallel for default(none) private(i) shared(vec1, tree, mop)
+	for (i = 0;  i < vec1Size; i++) {
+		int dist = tree.search_cache(vec1[i].first - 1, vec1[i].second - 1);
+		#pragma omp critical(updatemop)
+		mop.insert(pair<pair<int, int>, int>(make_pair(vec1[i].first, vec1[i].second), dist));
 	}
-	vector<int>().swap(vec1);
-	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
-	set<int>().swap(allToAll2);
+	vector<pair<int, int>>().swap(vec1);
 	i = 0;
 	const int vec2Size = vec2.size();
-//	#pragma omp parallel for default(none) private(i) shared(vec2, mop, tree)
-	for (int i = 0; i < vec2Size; i++) {
+	#pragma omp parallel for default(none) private(i) shared(vec2, tree, mop)
+	for (i = 0; i < vec2Size; i++) {
 		int this_s = vec2[i];
 		int this_t = 0;
 		for (int j = i + 1; j < vec2Size; j++) {
 			this_t = vec2[j];
-//			#pragma omp critical(updateMop)
-//			{
-			mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
-//			}
+			int dist = tree.search_cache(this_s - 1, this_t - 1);
+			#pragma omp critical(updatemop)
+			mop.insert(pair<pair<int, int>, int>(make_pair(this_s, this_t), dist));
 		}
 	}
 	vector<int>().swap(vec2);

@@ -58,9 +58,8 @@ struct Graph// Undirected graph structure
 	extern int find_path(int S, int T, vector<int>& order);
 	extern int get_dist(int S, int T, const map_of_pairs& dist, bool simplestCheck=false);
 	extern void init_dist_map(map_of_pairs& dist_map);
-	extern void reinitialize_dist_map(std::set<std::pair<int, int>>& ongoingLocs,
-		set<int>& allToAll1,
-		set<int>& allToAll2,
+	extern void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
+		set<int>& allToAll,
 		map_of_pairs& mop);
 
 struct Heap//双指针大根堆

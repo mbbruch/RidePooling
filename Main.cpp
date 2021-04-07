@@ -90,12 +90,13 @@ int main(int argc, char* argv[]) {
 
         handle_unserved(unserved, requests, now_time);
 
-        if (read_requests(in, requests, now_time+time_step, dist)) { 
+        if (read_requests(in, requests, now_time + time_step, dist)) {
             //Note: the read_requests code reads one request beyond now_time+time_step (unless it returns false)
             tail = requests.back();
             requests.pop_back();
             hasMore = true;
-        } else {
+        }
+        else {
             hasMore = false;
         }
 
@@ -110,31 +111,69 @@ int main(int argc, char* argv[]) {
 		
 		beforeTime = std::chrono::system_clock::now();
         std::set<std::pair<int, int>> ongoingLocs;
-        std::set<int> allToAll1;
-        std::set<int> allToAll2;
         for (int i = 0; i < vehicles.size(); i++) {
-            const int vehLoc = vehicles[i].get_location();
-            allToAll1.emplace(vehLoc);
+            int vehLoc = vehicles[i].get_location();
             for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
-                ongoingLocs.insert({
-                    std::pair{vehLoc, vehicles[i].passengers[j].start },
-                    std::pair{ vehLoc, vehicles[i].passengers[j].end },
-                    std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end } });
-                allToAll2.insert({ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end});
+                int dropoff = vehicles[i].passengers[j].end;
+                //Vehicle to on-board passenger dropoff
+                if (vehLoc < dropoff){
+                    ongoingLocs.insert(make_pair(vehLoc, dropoff));
+                }
+                else if (vehLoc > dropoff) {
+                    ongoingLocs.insert(make_pair(dropoff, vehLoc));
+                }
+                for (int k = j+1; k < vehicles[i].get_num_passengers(); k++) {
+                    int newdropoff = vehicles[i].passengers[k].end;
+                    //On-board to on-board passenger dropoff
+                    if (newdropoff < dropoff) {
+                        ongoingLocs.insert(make_pair(newdropoff, dropoff));
+                    }
+                    else if (newdropoff > dropoff) {
+                        ongoingLocs.insert(make_pair(dropoff, newdropoff));
+                    }
+                }
+
+                for (int k = 0; k < requests.size(); k++) {
+                    int newpickup = requests[k].start;
+                    int newdropoff = requests[k].end;
+                    //On-board passenger dropoff to new request pickup
+                    if (newpickup < dropoff) {
+                        ongoingLocs.insert(make_pair(newpickup, dropoff));
+					}
+                    else if (newpickup > dropoff) {
+                        ongoingLocs.insert(make_pair(dropoff, newpickup));
+					}
+                    //On-board passenger dropoff to new request dropoff
+                    if (newdropoff < dropoff) {
+                        ongoingLocs.insert(make_pair(newdropoff, dropoff));
+                    }
+                    else if (newdropoff > dropoff) {
+                        ongoingLocs.insert(make_pair(dropoff, newdropoff));
+                    }
+                }
+            }
+            //Vehicle location to new request pickup
+            for (int j = 0; j < requests.size(); j++) {
+                int newPickup = requests[j].start;
+                if (vehLoc < newPickup) {
+                    ongoingLocs.insert(make_pair(vehLoc, newPickup));
+                }
+                else if (vehLoc > newPickup) {
+                    ongoingLocs.insert(make_pair(newPickup, vehLoc));
+                }
             }
         }
+        std::set<int> allToAll;
         for (int i = 0; i < requests.size(); i++) {
-            allToAll1.emplace(requests[i].start);
-            allToAll2.insert({ requests[i].start, requests[i].end });
+            allToAll.insert({ requests[i].start, requests[i].end });
         }
         map_of_pairs dist{ ongoingLocs.size() +
-            (allToAll1.size() * (allToAll1.size() - 1) / 2) +
-            (allToAll2.size() * (allToAll2.size() - 1) / 2) };
+            (allToAll.size() * (allToAll.size() - 1) / 2) };
 			
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Dist map combo set up time = %f", elapsed_seconds.count()));
 		beforeTime = std::chrono::system_clock::now();		
-        reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2, dist);
+        reinitialize_dist_map(ongoingLocs, allToAll, dist);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Dist map set up time = %f", elapsed_seconds.count()));
 
