@@ -306,7 +306,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			vector<pair<const uos, pair<int, uos>>*> elements;
 			elements.reserve(newTrips.size());
 			for(auto it = newTrips.begin(); it != newTrips.end(); it++){
-				if(it->second.second.size()==k){ //complete clique requirement: all k subsets of size k-1 must be in here
+				if(2==k || (it->second.second.size()==k && it->second.first>=k*(k-1)/2)){ //complete clique requirement: all k subsets of size k-1 must be in here
 					elements.push_back(&(*it));
 				}
 			}
@@ -350,8 +350,15 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 bool pathFound = false;
                 //NOTE: as of now, start location is irrelevant BUT ONLY BECAUSE time starts at -9999 so delay time is zero
                 Vehicle virtualCar = Vehicle();
+                auto itRNCNend = rvGraph->req_nearest_car_node.end();
                 for (int i = 0; i < k; i++) {
-                    virtualCar.set_location(reqs[i]->start);
+                    auto it = rvGraph->req_nearest_car_node.find(i);
+                    if (it != itRNCNend) {
+                        virtualCar.set_location(it->second);
+                    }
+                    else {
+                    	virtualCar.set_location(reqs[i]->start);
+                    }
                     TravelHelper th;
                     if (th.travel(virtualCar, reqs, k, dist, false, true, false) >= 0) {
                         pathFound = true;
@@ -430,14 +437,21 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
 				Request* reqs[max_trip_size];
 				int itridx = 0;
 				bool bRuledOut = false;
-			 
-                for (auto itr = thisSizeVec[j].requests.begin(); itr != thisSizeVec[j].requests.end(); itr++) {
-					if((2==k) && rvGraph->req_car.find(make_pair(*itr,vIdx)) == endRC){ //TODO: SHOULD BE vehicleID
+				if(2==k){
+					for (auto itr = thisSizeVec[j].requests.begin(); itr != thisSizeVec[j].requests.end(); itr++) {
+					if(rvGraph->req_car.find(make_pair(*itr,vehicleId)) == endRC){
 						bRuledOut = true;
 						break;
 					}
 					reqs[itridx++] = &requests[*itr];
+					}
 				}
+				else{
+					for (auto itr = thisSizeVec[j].requests.begin(); itr != thisSizeVec[j].requests.end(); itr++) {
+						reqs[itridx++] = &requests[*itr];
+					}
+				}
+			 
 				if(bRuledOut){
 					thisSizeVec[j].ruledOut = true;
 				}

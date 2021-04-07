@@ -113,7 +113,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                     int timeDiff = reqs[i]->reqTime - newTime;
                     if (timeDiff > 0) {
                         // TODO maybe add this back? 
-                        nowTime += timeDiff; //TODO should there be a +1 here?
+                        //nowTime += timeDiff; //TODO should there be a +1 here?
                         newTime = reqs[i]->reqTime;
                     }
                     if (decided) {

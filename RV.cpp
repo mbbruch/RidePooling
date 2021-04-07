@@ -8,6 +8,7 @@
 #include "travel.h"
 #include "globals.h"
 #include "RV.h"
+#include "GPtree.h"
 using namespace std;
 
 void RVGraph::add_edge_vehicle_req(int vehicle, int req, int cost) {
@@ -37,27 +38,41 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pa
     /* Get arc costs and add arcs for request-vehicle matches*/
     int connected = 0;
     int disconnected = 0;
-    int i = 0;
-	entries = 0;
+    int j = 0;
+    entries = 0;
     const int nVeh = vehicles.size();
     const int nReq = requests.size();
-    #pragma omp parallel for default(none) private(i) shared(vehicles, requests, dist)
-    for (i = 0; i < nVeh; i++) {
-        if (vehicles[i].isAvailable()) {
-            for (int j = 0; j < nReq; j++) {
+    #pragma omp parallel for default(none) private(j) shared(vehicles, requests, dist)
+    for (j = 0; j < nReq; j++) {
+        int closestDist = -1;
+        int closestNode = -1;
                 Request thisReq = requests[j];
 				Request* reqs[1];
                 reqs[0] = &thisReq;
+        for (int i = 0; i < nVeh; i++) {
+            if (vehicles[i].isAvailable()) {
+                Vehicle vehicleCopy = vehicles[i];
                 TravelHelper th;
-                int cost = th.travel(vehicles[i], reqs, 1, dist, false);
+                int cost = th.travel(vehicleCopy, reqs, 1, dist, false);
                 if (cost >= 0) {
+                    int distance = get_dist(vehicleCopy.get_location(), thisReq.start, dist);
+                    if (closestDist < 0 || distance < closestDist) {
+                        closestDist = distance;
+                        closestNode = vehicleCopy.get_location();
+                    }
                     #pragma omp critical (addevr)
                     add_edge_vehicle_req(i, j, th.getTravelCost());
                 }
             }
         }
+        if (closestDist >= 0) {
+            #pragma omp critical (addClosestNode)
+            req_nearest_car_node.insert(make_pair(j, closestNode));
     }
+    }
+
     req_car.rehash(entries);
+    req_nearest_car_node.rehash(req_cost_car.size());
     /*
     map<bool, int> carCounts;
     for (auto it = carConnections.begin(); it != carConnections.end(); it++) {
