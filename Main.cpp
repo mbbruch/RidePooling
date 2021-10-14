@@ -42,6 +42,7 @@ int main(int argc, char* argv[]) {
         print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
         print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
     }
+
     env->set(GRB_IntParam_OutputFlag, 0);
     //env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
