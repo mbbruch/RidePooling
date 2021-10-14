@@ -28,15 +28,22 @@ int main(int argc, char* argv[]) {
     std::string filenameTime = GetCurrentTimeForFileName();
     outDir = "C:/Code_Projects/RidePooling/Out/" + filenameTime + "/";
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
-   logFile = "logfile_" + filenameTime + ".txt";//argv[3];
+    logFile = "logfile_" + filenameTime + ".txt";//argv[3];
     setupOutfiles(outDir, outFilename);
     //max_capacity = atoi(argv[4]);
     map_of_pairs dist;
 
-	print_line(outDir,logFile,"Initializing GRBEnv");
-    GRBEnv *env = new GRBEnv();
+    print_line(outDir, logFile, "Initializing GRBEnv");
+    GRBEnv* env;
+    try {
+        env = new GRBEnv();
+    }
+    catch (GRBException& e) {
+        print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
+        print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
+    }
     env->set(GRB_IntParam_OutputFlag, 0);
-    env->set(GRB_IntParam_Threads, 4);
+    //env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
     total_dist = unserved_dist = raw_dist = 0;
@@ -44,14 +51,15 @@ int main(int argc, char* argv[]) {
     dist_map_size = 0;
     disconnectedCars = 0;
 
-  //  while ((getchar()) != '\n');
-	print_line(outDir,logFile,"Start initializing");
+    //  while ((getchar()) != '\n');
+    print_line(outDir, logFile, "Start initializing");
     initialize(false, dist);
-    print_line(outDir,logFile,"load_end");
+    print_line(outDir, logFile, "load_end");
 
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
     read_vehicles(vehFile, vehicles);
+    print_line(outDir, logFile, "Vehicles read in");
 
     vector<Request> requests;
     requests.reserve(100);
@@ -61,19 +69,19 @@ int main(int argc, char* argv[]) {
 
     vector<Request> unserved;
 
-    FILE *in = get_requests_file(reqFile);
+    FILE* in = get_requests_file(reqFile);
     fclose(in);
     in = get_requests_file(reqFile);
 
     while (true) {
-		auto beforeTime = std::chrono::system_clock::now();
+        auto beforeTime = std::chrono::system_clock::now();
         utilization.clear();
         travel_time = 0;
         travel_max = 0;
         travel_cnt = 0;
         these_reqs = 0;
         now_time += time_step;
-        print_line(outDir,logFile,string_format("Timestep: %d", now_time));
+        print_line(outDir, logFile, string_format("Timestep: %d", now_time));
 
         requests.clear();
         if (hasMore) {
@@ -82,12 +90,13 @@ int main(int argc, char* argv[]) {
 
         handle_unserved(unserved, requests, now_time);
 
-        if (read_requests(in, requests, now_time+time_step, dist)) { 
+        if (read_requests(in, requests, now_time + time_step, dist)) {
             //Note: the read_requests code reads one request beyond now_time+time_step (unless it returns false)
             tail = requests.back();
             requests.pop_back();
             hasMore = true;
-        } else {
+        }
+        else {
             hasMore = false;
         }
 
@@ -99,29 +108,37 @@ int main(int argc, char* argv[]) {
         //one-to-one: vehicle locations + ongoing request locations
         //all-to-all 1: vehicle locations + new request locations (start points only)
         //all-to-all 2: ongoing request locations + new requestion locations
+		
+		beforeTime = std::chrono::system_clock::now();
         std::set<std::pair<int, int>> ongoingLocs;
         std::set<int> allToAll1;
         std::set<int> allToAll2;
-        map_of_pairs dist;
         for (int i = 0; i < vehicles.size(); i++) {
             const int vehLoc = vehicles[i].get_location();
             allToAll1.emplace(vehLoc);
             for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
-                ongoingLocs.emplace(std::pair{ vehLoc, vehicles[i].passengers[j].start });
-                ongoingLocs.emplace(std::pair{ vehLoc, vehicles[i].passengers[j].end });
-                ongoingLocs.emplace(std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end });
-                allToAll2.emplace(vehicles[i].passengers[j].start);
-                allToAll2.emplace(vehicles[i].passengers[j].end);
-            }
-        }
+                ongoingLocs.insert({
+                    std::pair{vehLoc, vehicles[i].passengers[j].start },
+                    std::pair{ vehLoc, vehicles[i].passengers[j].end },
+                    std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end } });
+                allToAll2.insert({ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end});
+                }
+                }
         for (int i = 0; i < requests.size(); i++) {
             allToAll1.emplace(requests[i].start);
-            allToAll2.emplace(requests[i].start);
-            allToAll2.emplace(requests[i].end);
+            allToAll2.insert({ requests[i].start, requests[i].end });
         }
-        dist = reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2);
+        map_of_pairs dist{ 2*(ongoingLocs.size() +
+            (allToAll1.size() * (allToAll1.size() - 1) / 2) +
+            (allToAll2.size() * (allToAll2.size() - 1) / 2)) };
 
-        print_line(outDir, logFile, string_format("Dist map size = %f", dist.size()));
+		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
+        print_line(outDir,logFile,string_format("Dist map combo set up time = %f", elapsed_seconds.count()));
+		beforeTime = std::chrono::system_clock::now();		
+        reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2, dist);
+		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
+        print_line(outDir,logFile,string_format("Dist map set up time = %f", elapsed_seconds.count()));
+
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests, dist);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
@@ -133,6 +150,7 @@ int main(int argc, char* argv[]) {
         print_line(outDir,logFile,string_format("RTV build time = %f", elapsed_seconds.count()));
 
 		beforeTime = std::chrono::system_clock::now();
+
         RTV->solve(env, vehicles, requests, unserved, dist);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Solving time = %f", elapsed_seconds.count()));

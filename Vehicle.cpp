@@ -52,10 +52,10 @@ int Vehicle::get_num_passengers() {
 void Vehicle::print_passengers() {
     for (int i = 0; i < passengers.size(); i++) {
         printf("%d: ", passengers[i].unique);
-        if (passengers[i].status==Request::onBoard) {
+        if (passengers[i].status == Request::onBoard) {
             printf("onboard, ");
         }
-        else if(passengers[i].status==Request::waiting){
+        else if (passengers[i].status == Request::waiting) {
             printf("waiting, ");
         }
         else if (passengers[i].status == Request::droppedOff) {
@@ -92,7 +92,7 @@ void Vehicle::setup_occupancy_changes(map<int, int>& changes) {
 /// <param name="getOffPsngr"></param>
 /// <param name="schedule"></param>
 /// <param name="decided"></param>
-void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDelays, vector<int>& getOffPsngr, vector<Request>& schedule, 
+void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDelays, vector<int>& getOffPsngr, vector<Request>& schedule,
     map<int, int>& occupancyChanges, bool decided) {
 
     auto it = occupancyChanges.begin();
@@ -109,7 +109,7 @@ void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDe
 
     for (int i = 0; i < passengers.size(); i++) {
         Request& req = passengers[i];
-        if (req.status==Request::onBoard) {
+        if (req.status == Request::onBoard) {
             if (nowTime - req.expectedOffTime > max_delay_sec) {
                 exceeded = true;
                 return;
@@ -129,9 +129,23 @@ void Vehicle::check_passengers(int nowTime, int stop, bool& exceeded, int& sumDe
 
 void Vehicle::updateOccupancyTracker(map<int, int>& occupancyChanges, int time, int change)
 {
+    int val = occupancyChanges[time];
+  
+    if (val == -change) {
+        occupancyChanges.erase(time);
+    }
+    else {
+        occupancyChanges[time] = val + change;
+    }
+	/*
+	auto it = occupancyChanges.find(time);
+	if(((*it).second+= change) == 0) {
+		occupancyChanges.erase(it);
+	}
     if ((occupancyChanges[time] += change) == 0) {
         occupancyChanges.erase(time);
     }
+	*/
 }
 
 void Vehicle::reverse_passengers(vector<int>& getOffPsngr, vector<Request>& schedule, bool decided) {
@@ -211,9 +225,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, map_of_pairs& di
                 this->timeToNextNode = schedTime - nowTime;
                 this->available = (this->timeToNextNode < time_step);
                 this->availableSince = this->timeToNextNode + nowTime;
-                if (this->availableSince < 0) {
-                    int x = 5;
-                }
                 break;
             }
         }
@@ -222,9 +233,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, map_of_pairs& di
         this->timeToNextNode -= time_step;
         this->available = (this->timeToNextNode < time_step);
         this->availableSince = this->timeToNextNode + nowTime;
-        if (this->availableSince < 0) {
-            int x = 5;
-        }
         if (this->available) {
             int schedTime = this->scheduledPath.front().first;
             int node = this->scheduledPath.front().second;
@@ -254,7 +262,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, map_of_pairs& di
         if (iterPsngr->scheduledOnTime > baseTime) {
             iterPsngr->status = Request::waiting; //TODO is this addition needed?
             newRequests.push_back(*iterPsngr);
-            // printf("%d waiting, ", iterPsngr->unique);
         }
         else if (iterPsngr->scheduledOffTime <= baseTime) {
             // already got off

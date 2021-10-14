@@ -11,6 +11,7 @@
 #include<chrono>
 #include "util.h"
 #include<set>
+#include<omp.h>
 #include<cmath>
 #include<queue>
 #include<sys/timeb.h>
@@ -42,7 +43,7 @@ const double PI = acos(-1.0);
 const int Partition_Part = 4;//K Fork Tree
 long long Additional_Memory = 0;//Additional space for building auxiliary matrices (int)
 const int Naive_Split_Limit = 33;//The sub-graph size is smaller than this value
-const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
+const bool RevE = false;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
 const bool Distance_Offset = false;//KNN是否考虑车辆距离结点的修正距离
 const bool DEBUG1 = false;
 //#define //TIME_TICK_START gettimeofday( &tv, NULL ); ts = tv.tv_sec * 100000 + tv.tv_usec / 10;
@@ -70,8 +71,6 @@ void load_vector(vector<int>& v)
 	int n, i, j;
 	int result = scanf("%d", &n);
 	if (result <= 0) {
-		int x = 5;
-		x = 5 + 5;;
 		exit(0);
 	}
 	if (n < 1000000000 && n >= 0) { 
@@ -518,8 +517,8 @@ void read()
 		else G.add(j - 1, k - 1, l);//Two-way edge
 	}
 	fclose(in);
-	//if (Optimization_Euclidean_Cut) TODO revisit; would this help?
-	//{
+	if (Optimization_Euclidean_Cut) //TODO revisit; would this help?
+	{
 		in = fopen(Node_File, "r");
 		double d1, d2;
 		for (i = 0; i<G.n; i++)//读取边
@@ -530,7 +529,7 @@ void read()
 		}
 		fclose(in);
 		printf("read over\n");
-	//}
+	}
 }
 void save()
 {
@@ -602,39 +601,67 @@ void init_dist_map(map_of_pairs& dist_map)
 	save_dist_map(dist_map);
 }
 
-map_of_pairs reinitialize_dist_map(const set<pair<int, int>>& ongoingLocs,
-	const set<int>& allToAll1, const set<int>& allToAll2) {
-	map_of_pairs mop{ ongoingLocs.size() +
-		(allToAll1.size() * (allToAll1.size() - 1) / 2) +
-		(allToAll2.size() * (allToAll2.size() - 1) / 2) };
-
+void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
+	set<int>& allToAll1, set<int>& allToAll2, map_of_pairs& mop) {
 	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
 		if ((*it).first == (*it).second) continue;
-		if ((*it).first < (*it).second) {
-			mop.emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
-		}
-		else {
-			mop.emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
-		}
+//		if ((*it).first < (*it).second) {
+			mop.try_emplace(pair<int, int>{(*it).first, (*it).second}, tree.search_cache((*it).first - 1, (*it).second - 1));
+//		}
+//		else {
+			mop.try_emplace(pair<int, int>{(*it).second, (*it).first}, tree.search_cache((*it).second - 1, (*it).first - 1));
+//		}
 	}
-	vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
-	for (int i = 0; i < vec1.size(); i++) {
+	set<pair<int, int>>().swap(ongoingLocs);
+	vector<int> vec1{allToAll1.begin(), allToAll1.end()};
+	set<int>().swap(allToAll1);
+	
+	int i = 0;
+	const int vec1Size = vec1.size();
+	for (int i = 0; i < vec1Size; i++) {
 		int this_s = vec1[i];
-		for (int j = i + 1; j < vec1.size(); j++) {
-			int this_t = vec1[j];
-			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+		int this_t = 0;
+		for (int j = i + 1; j < vec1Size; j++) {
+			this_t = vec1[j];
+//			#pragma omp critical(updateMop)
+//			{
+				mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+				mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+//			}
 		}
 	}
+	for (int i = 0; i < vec1Size; i++) {
+		int this_s = vec1[i];
+		int this_t = 0;
+		for (int j = i + 1; j < vec1Size; j++) {
+			this_t = vec1[j];
+			//			#pragma omp critical(updateMop)
+			//			{
+			mop.try_emplace(pair<int, int>{this_t, this_s}, tree.search_cache(this_t - 1, this_s - 1));
+			//			}
+		}
+	}
+
+	vector<int>().swap(vec1);
 	vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
-	for (int i = 0; i < vec2.size(); i++) {
+	set<int>().swap(allToAll2);
+	i = 0;
+	const int vec2Size = vec2.size();
+//	#pragma omp parallel for default(none) private(i) shared(vec2, mop, tree)
+	for (int i = 0; i < vec2Size; i++) {
 		int this_s = vec2[i];
-		for (int j = i + 1; j < vec2.size(); j++) {
-			int this_t = vec2[j];
-			mop.emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+		int this_t = 0;
+		for (int j = i + 1; j < vec2Size; j++) {
+			this_t = vec2[j];
+//			#pragma omp critical(updateMop)
+//			{
+			mop.try_emplace(pair<int, int>{this_s, this_t}, tree.search_cache(this_s - 1, this_t - 1));
+			mop.try_emplace(pair<int, int>{this_t, this_s}, tree.search_cache(this_t - 1, this_s - 1));
+//			}
 		}
 	}
+	vector<int>().swap(vec2);
 	mop.rehash(mop.size());
-	return mop;
 }
 
 int search(int s,int t) {
@@ -650,8 +677,8 @@ int find_path(int S, int T, vector<int> &order) {
 }
 
 //TODO: this assume distances are the same in both directions
-int get_dist(int S, int T, map_of_pairs& dist, bool simplestCheck) {
-	pair<int, int> st;
+int get_dist(int S, int T, const map_of_pairs& dist, bool simplestCheck) {
+/*	pair<int, int> st;
 	if (S < T) {
 		st = make_pair(S, T);
 	} else if (S > T){
@@ -659,7 +686,12 @@ int get_dist(int S, int T, map_of_pairs& dist, bool simplestCheck) {
 	} else {
 		return 0;
 	}
-	auto found = dist.find(st);
+*/
+	if(S==T){
+		return 0;
+	}
+	
+	auto found = dist.find(make_pair(S,T));
 	if (found != dist.end()) {
 		return found->second;
 	}
@@ -894,7 +926,6 @@ vector<int> Graph::Split(Graph* G[], int nparts)//将子图一分为二返回col
 			// ensure edges within
 			if ( nset.find( enid ) != nset.end() ){
 			xadj_accum ++;
-
 			adjncy[adjncy_pos] = enid;
 			adjwgt[adjncy_pos] = Nodes[nid].adjweight[j];
 			adjncy_pos ++;
@@ -1346,10 +1377,7 @@ void G_Tree::write()
 
 void G_Tree::add_border(int x, int id, int id2)//向x点的border集合中加入一个新真实id,在子图的虚拟id为id2,并对其标号为border中的编号
 {
-	if (node[x].borders.find(id) == node[x].borders.end())
-	{
-		node[x].borders.emplace(id,pair<int,int>((int)node[x].borders.size(), id2));
-	}
+	node[x].borders.try_emplace(id,pair<int,int>((int)node[x].borders.size(), id2));
 }
 
 void G_Tree::make_border(int x, const vector<int>& color)//计算点x的border集合，二部图之间的边集为E
@@ -1666,7 +1694,7 @@ void G_Tree::push_borders_up(int x, vector<int>& dist1, int type)//将S到结点
 	delete[] begin;
 	delete[] end;
 }
-
+//Cache the shortest path length from S to the boundary point of node x in x.cache_dist, calculate the distance from S to the real border of x.father and update x.father.cache
 void G_Tree::push_borders_up_cache(int x, int bound)//将S到结点x边界点缓存在x.cache_dist的最短路长度，计算S到x.father真实border的距离更新x.father.cache
 {
 	if (node[x].father == 0)return;
@@ -1679,9 +1707,9 @@ void G_Tree::push_borders_up_cache(int x, int bound)//将S到结点x边界点缓
 	for (int i = 0; i<node[x].borders.size(); i++)
 		if (node[x].border_in_father[i] != -1)
 		{
-			if (node[x].cache_dist[i]<bound)//bound界内的begin
+			if (node[x].cache_dist[i]<bound)//cache within bounds
 				(*dist2)[node[x].border_in_father[i]] = (*dist1)[i];
-			else (*dist2)[node[x].border_in_father[i]] = -1;//bound界外的begin
+			else (*dist2)[node[x].border_in_father[i]] = -1;//cache outside of bounds
 		}
 	int** dist = node[y].dist.a;
 	int* begin, * end;//已算出的序列编号,未算出的序列编号
@@ -1747,10 +1775,20 @@ void G_Tree::push_borders_down_cache(int x, int y, int bound)//将S到结点x边
 	for (int i = 0; i<tot0; i++)
 	{
 		int i_ = begin[i];
+		int j_ = 0;
+		int tocompare = 0;
+		int dist2i = (*dist2)[i_];
+		int* disti = dist[i_];
 		for (int j = 0; j<tot1; j++)
 		{
+			j_ = end[j];
+			tocompare = dist2i + disti[j_];
+			if ((*dist2)[j_] > tocompare)
+				(*dist2)[j_] = tocompare;
+			/*
 			if ((*dist2)[end[j]]>(*dist2)[i_] + dist[i_][end[j]])
 				(*dist2)[end[j]] = (*dist2)[i_] + dist[i_][end[j]];
+			*/
 		}
 	}
 	delete[] begin;
@@ -1761,33 +1799,52 @@ void G_Tree::push_borders_down_cache(int x, int y, int bound)//将S到结点x边
 			node[y].min_border_dist = min(node[y].min_border_dist, node[y].cache_dist[i]);
 }
 
-void G_Tree::push_borders_brother_cache(int x, int y, int bound)//将S到结点x边界点缓存在x.cache_dist的最短路长度，计算S到x的兄弟结点y真实border的距离更新y.cache
+void G_Tree::push_borders_brother_cache(int x, int y, int bound)//Cache the shortest path length from S to the boundary point of node x in x.cache_dist, calculate the distance from S to the real border of x's sibling node y, update y.cache
 {
 	int S = node[x].cache_id, LCA = node[x].father, i, j;
 	if (node[y].cache_id == S && node[y].cache_bound >= bound)return;
 	int p;
 	node[y].cache_id = S;
 	node[y].cache_bound = bound;
-	vector<int>id_LCA[2], id_now[2];//子结点候选border在LCA中的border序列编号,子结点候选border在内部的border序列的编号
+	vector<int>id_LCA[2], id_now[2];//The border sequence number of the child node candidate border in LCA, the number of the internal border sequence of the child node candidate border
+	int nodexcacheid = node[x].cache_id;
+	int nodepbifi = 0;
 	for (int t = 0; t<2; t++)
 	{
-		if (t == 0)p = x;
-		else p = y;
-		for (i = j = 0; i<(int)node[p].borders.size(); i++)
-			if (node[p].border_in_father[i] != -1)
-				if ((t == 1 && (Optimization_Euclidean_Cut == false || Euclidean_Dist(node[x].cache_id, node[p].border_id[i])<bound)) || (t == 0 && node[p].cache_dist[i]<bound))
+		Node& nodep = (t == 0) ? node[x] : node[y];
+		for (i = j = 0; i < (int)nodep.borders.size(); i++)
+		{
+			nodepbifi = nodep.border_in_father[i];
+			if (nodepbifi != -1)
+				if ((t == 1 && (Optimization_Euclidean_Cut == false || Euclidean_Dist(nodexcacheid, nodep.border_id[i]) < bound))
+					||
+					(t == 0 && nodep.cache_dist[i] < bound)
+					)
 				{
-					id_LCA[t].push_back(node[p].border_in_father[i]);
+					id_LCA[t].push_back(nodepbifi);
 					id_now[t].push_back(i);
 				}
+		}
+
 	}
 	for (int i = 0; i<node[y].cache_dist.size(); i++)node[y].cache_dist[i] = INF;
-	for (int i = 0; i<id_LCA[0].size(); i++)
-		for (int j = 0; j<id_LCA[1].size(); j++)
+
+	vector<int>& idnow1 = id_now[1];
+	vector<int> & idlca1 = id_LCA[1];
+	int to_use = INF;
+	for (int i = 0; i < id_LCA[0].size(); i++) {
+		int xdist = node[x].cache_dist[id_now[0][i]];
+		int* thisA = node[LCA].dist.a[id_LCA[0][i]];
+		for (int j = 0; j < id_LCA[1].size(); j++)
 		{
-			int k = node[x].cache_dist[id_now[0][i]] + node[LCA].dist.a[id_LCA[0][i]][id_LCA[1][j]];
-			if (k<node[y].cache_dist[id_now[1][j]])node[y].cache_dist[id_now[1][j]] = k;
+			int k = xdist + thisA[idlca1[j]];
+			if (k < node[y].cache_dist[idnow1[j]]) {
+				node[y].cache_dist[idnow1[j]] = k;
+				to_use = k;
+			}
 		}
+	}
+
 	int** dist = node[y].dist.a;
 	//vector<int>begin,end;//已算出的序列编号,未算出的序列编号
 	int* begin, * end;
@@ -1806,12 +1863,19 @@ void G_Tree::push_borders_brother_cache(int x, int y, int bound)//将S到结点x
 	for (int i = 0; i<tot0; i++)
 	{
 		int i_ = begin[i];
+		int j_ = 0;
+		int tocompare = 0;
+		int dist2i = node[y].cache_dist[i_];
+		int* disti = dist[i_];
 		for (int j = 0; j<tot1; j++)
 		{
-			if (node[y].cache_dist[end[j]]>node[y].cache_dist[i_] + dist[i_][end[j]])
-				node[y].cache_dist[end[j]] = node[y].cache_dist[i_] + dist[i_][end[j]];
+			j_ = end[j];
+			tocompare = dist2i + disti[j_];
+			if (node[y].cache_dist[j_]> tocompare)
+				node[y].cache_dist[j_] = tocompare;
 		}
 	}
+
 	delete[] begin;
 	delete[] end;
 	node[y].min_border_dist = INF;
@@ -1868,8 +1932,8 @@ void G_Tree::push_borders_up_path(int x, vector<int>& dist1)//将S到结点x边�
 	delete[] begin;
 	delete[] end;
 }
-
-int G_Tree::find_LCA(int x, int y)//计算树上两节点xy的LCA
+//Calculate the Lowest Common Ancestor of two nodes xy on the tree
+int G_Tree::find_LCA(int x, int y)
 {
 	if (node[x].deep<node[y].deep)swap(x, y);
 	while (node[x].deep>node[y].deep)x = node[x].father;
@@ -1877,10 +1941,10 @@ int G_Tree::find_LCA(int x, int y)//计算树上两节点xy的LCA
 	return x;
 }
 
-int G_Tree::search(int S, int T)//查询S-T最短路长度
+int G_Tree::search(int S, int T)//Query the shortest path length of S-T
 {
 	if (S == T)return 0;
-	//计算LCA
+	//Calculate LCA
 	int i, j, k, p;
 	int LCA, x = id_in_node[S], y = id_in_node[T];
 	if (node[x].deep<node[y].deep)swap(x, y);
@@ -1891,7 +1955,7 @@ int G_Tree::search(int S, int T)//查询S-T最短路长度
 	dist[0].push_back(0);
 	dist[1].push_back(0);
 	x = id_in_node[S], y = id_in_node[T];
-	//朴素G-Tree计算
+	//Naive G-Tree calculation
 	for (int t = 0; t<2; t++)
 	{
 		if (t == 0)p = x;
@@ -1904,7 +1968,7 @@ int G_Tree::search(int S, int T)//查询S-T最短路长度
 		if (t == 0)x = p;
 		else y = p;
 	}
-	vector<int>id[2];//子结点border在LCA中的border序列编号
+	vector<int>id[2];//The border sequence number of the child node border in LCA
 	for (int t = 0; t<2; t++)
 	{
 		if (t == 0)p = x;
@@ -1918,7 +1982,7 @@ int G_Tree::search(int S, int T)//查询S-T最短路长度
 			}
 		while (dist[t].size()>id[t].size()) { dist[t].pop_back(); }
 	}
-	//最终配对
+	//Final match
 	int MIN = INF;
 	for (i = 0; i<dist[0].size(); i++)
 	{
@@ -1931,18 +1995,19 @@ int G_Tree::search(int S, int T)//查询S-T最短路长度
 	}
 	return MIN;
 }
-
-int G_Tree::search_cache(int S, int T, int bound)//查询S-T最短路长度,并将沿途结点的cache处理为S的结果，其中不计算权值>=bound的部分，若没有则剪枝返回INF
-{
-	//朴素G-Tree计算,维护cache
+//Query the shortest path length of S-T, 
+//and process the cache of the nodes along the way as the result of S. 
+//The part with weight >=bound is not calculated. 
+//If not, the pruning returns to INF
+int G_Tree::search_cache(int S, int T, int bound){
+	//Simple G-Tree calculation and cache maintenance
 	if (S == T)return 0;
-	//计算LCA
 	int i, j, k, p;
 	int x = id_in_node[S], y = id_in_node[T];
 	int LCA = find_LCA(x, y);
 
-	//计算两个叶子到LCA沿途结点编号
-	vector<int>node_path[2];//点x/y到LCA之前依次会经过的树结点编号
+	//Calculate the number of nodes along the way from two leaves to LCA
+	vector<int>node_path[2];
 	for (int t = 0; t<2; t++)
 	{
 		if (t == 0)p = x;
@@ -1957,7 +2022,7 @@ int G_Tree::search_cache(int S, int T, int bound)//查询S-T最短路长度,并�
 		else y = p;
 	}
 
-	//将S从叶子push到LCA下层
+	//Push S from the leaf to the lower layer of the LCA
 	node[id_in_node[S]].cache_id = S;
 	node[id_in_node[S]].cache_bound = bound;
 	node[id_in_node[S]].min_border_dist = 0;
@@ -1969,11 +2034,11 @@ int G_Tree::search_cache(int S, int T, int bound)//查询S-T最短路长度,并�
 		push_borders_up_cache(node_path[0][i]);
 	}
 
-	//计算T在LCA下层结点的cache
+	//Calculate the cache of T at the lower node of LCA
 	if (node[x].min_border_dist >= bound)return INF;
 	#pragma omp critical (pushborders)
 	push_borders_brother_cache(x, y);
-	//将T在LCA下层的数据push到底层结点T
+	//Push the data of T in the lower layer of LCA to the bottom node T
 	for (int i = node_path[1].size() - 1; i>0; i--)
 	{
 		if (node[node_path[1][i]].min_border_dist >= bound)return INF;
@@ -1982,11 +2047,11 @@ int G_Tree::search_cache(int S, int T, int bound)//查询S-T最短路长度,并�
 		push_borders_down_cache(node_path[1][i], node_path[1][i - 1]);
 	}
 
-	//最终答案
+	//Final answer
 	return node[id_in_node[T]].cache_dist[0];
 }
-
-int G_Tree::find_path(int S, int T, vector<int>& order)//返回S-T最短路长度，并将沿途经过的结点方案存储到order数组中
+//Return the shortest path length of S-T, and store the scheme of nodes passing along the way into the order array
+int G_Tree::find_path(int S, int T, vector<int>& order)
 {
 	order.clear();
 	if (S == T)
@@ -2044,7 +2109,7 @@ int G_Tree::find_path(int S, int T, vector<int>& order)//返回S-T最短路长�
 	//最终配对
 	//times[1] -= clock();
 	int MIN = INF;
-	int S_ = -1, T_ = -1;//最优路径在LCA中borders连接的编号
+	int S_ = -1, T_ = -1;// The number of the optimal path connected by borders in LCA
 	for (i = 0; i<(int)dist[0].size(); i++)
 		for (j = 0; j<(int)dist[1].size(); j++)
 		{
@@ -2056,7 +2121,7 @@ int G_Tree::find_path(int S, int T, vector<int>& order)//返回S-T最短路长�
 				T_ = id[1][j];
 			}
 		}
-	if (MIN<INF)//存在路径，恢复路径
+	if (MIN<INF)//Existing path, restoring path
 	{
 		for (int t = 0; t<2; t++)
 		{
@@ -2079,7 +2144,7 @@ int G_Tree::find_path(int S, int T, vector<int>& order)//返回S-T最短路长�
 				}
 				else break;
 			}
-			if (t == 0)//翻转，补充连接路径
+			if (t == 0)//Flip, Supplemental connection path
 			{
 				reverse(order.begin(), order.end());
 				order.push_back(node[LCA].border_id[S_]);
@@ -2111,7 +2176,10 @@ int G_Tree::real_border_number(int x)//计算x真实的border数(忽略内部子
 	return re;
 }
 
-void G_Tree::find_path_border(int x, int S, int T, vector<int>& v, int rev)//返回结点x中编号为S到T的border的结点路径，存储在vector<int>中，将除了起点S以外的部分S+1~T，push到v尾部,rev=0表示正序，rev=1表示逆序
+//Return the node path of the border numbered from S to T in node x, store it in vector<int>, 
+//push the part S+1~T except the starting point S to the end of v, 
+//rev=0 means positive order, rev=1 means reverse order
+void G_Tree::find_path_border(int x, int S, int T, vector<int>& v, int rev)
 {
 	/*printf("find:x=%d S=%d T=%d\n",x,S,T);
 	printf("node:%d\n",x);

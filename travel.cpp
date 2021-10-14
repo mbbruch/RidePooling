@@ -32,7 +32,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
     vector<pair<int, int> >& path, vector<Request>& schedule,
     map<int, int>& occupancyChanges,
     map_of_pairs& dist,
-    int travelled, int nowDelays, int& nowTime, bool decided, bool feasibilityCheck, bool simplestCheck) {
+    int travelled, int nowDelays, int& nowTime, int& offset, bool decided, bool feasibilityCheck, bool simplestCheck) {
 
     /* If there's nowhere the car still needs to go, finished!*/
     if (target.size() == 0) {
@@ -95,36 +95,38 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             3. Set all of those requests as onBoard
             4. Add all of those requests to "getOns" vector
         */
-        auto itNode = src_dst.find(node);
-        if (!visited && !exceeded && itNode != src_dst.end()) {
-            auto iterDst = (*itNode).second.begin();
-            while (iterDst != (*itNode).second.end()) {
-                if (target.emplace(*iterDst).second) {
-                    // record nodes newly inserted into target
-                    inserted.push_back(*iterDst);
+        
+        if (!visited && !exceeded) {
+            auto itNode = src_dst.find(node);
+			if(itNode != src_dst.end()){
+                auto iterDst = (*itNode).second.begin();
+                while (iterDst != (*itNode).second.end()) {
+                    if (target.insert(*iterDst).second) {
+                        // record nodes newly inserted into target
+                        inserted.push_back(*iterDst);
+                    }
+                    iterDst++;
                 }
-                iterDst++;
-            }
-            for (int i = 0; i < numReqs; i++) {
+                for (int i = 0; i < numReqs; i++) {
                 if (reqs[i]->start == node && reqs[i]->status==Request::waiting) {
-                    reqs[i]->status = Request::onBoard;
-                    int timeDiff = reqs[i]->reqTime - newTime;
-                    if (timeDiff > 0) {
-                        // TODO maybe add this back? 
-                        nowTime += timeDiff; //TODO should there be a +1 here?
-                        newTime = reqs[i]->reqTime;
-                    }
-                    if (decided) {
-                        reqs[i]->scheduledOnTime = newTime;
-                    }
-                    vehicle.updateOccupancyTracker(occupancyChanges, newTime, 1);
+                        reqs[i]->status = Request::onBoard;
+                        int timeDiff = reqs[i]->reqTime - newTime;
+                        if (timeDiff > 0) {
+                            // TODO maybe add this back? 
+                            //nowTime += timeDiff; //TODO should there be a +1 here?
+                            if (newTime < 0) {
+                                offset = timeDiff;
+                            }
+                            newTime = reqs[i]->reqTime;
+                        }
+                        if (decided) {
+                            reqs[i]->scheduledOnTime = newTime;
+                        }
+                        vehicle.updateOccupancyTracker(occupancyChanges, newTime, 1);
 
-                    // record who got on
-
-                    if (reqs[i]->start == 566 && reqs[i]->end == 2956) {
-                        int x = 5;
-                    }
+                        // record who got on
                     getOns.push_back(make_pair(i,newTime));
+                    }
                 }
             }
         }
@@ -184,7 +186,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             target.erase(node);
             vehicle.set_location(node);
            
-            dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, dist, travelled + interDist, newDelays, newTime, decided, feasibilityCheck, simplestCheck);
+            dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, dist, travelled + interDist, newDelays, newTime, offset, decided, feasibilityCheck, simplestCheck);
 
             vehicle.set_location(prevLoc);
             target.insert(node);
@@ -243,14 +245,8 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     // insert new requests: s->t into src_dst
     for (int i = 0; i < numReqs; i++) {
         Request *req = reqs[i];
+        src_dst[req->start].insert(req->end);
         target.insert(req->start);
-        auto it = src_dst.find(req->start);
-        if (it == src_dst.end()) {
-            src_dst.emplace(req->start, set<int>{ req->end });
-        }
-        else {
-            (*it).second.emplace(req->end);
-        }
     }
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary
@@ -266,10 +262,6 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     vector<Request> schedule;
 
     int beginTime = ((vehicle.isAvailable()) ? vehicle.getAvailableSince() : now_time) + vehicle.get_time_to_next_node();
-    if (vehicle.get_num_passengers() > 0) {
-        int x = 5;
-    }
-
     /* Set of: 
         time, 
         change in the car's # of passengers (-1 for dropoff, +1 for pickup), 
@@ -277,22 +269,25 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     */
     map<int,int> occupancyChanges;
     vehicle.setup_occupancy_changes(occupancyChanges);
-    if (numReqs == 2) {
-        int x = 0;
-    }
+    int offset = 0;
     dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, dist, 0, 0,
-        beginTime, decided, feasibilityCheck, simplestCheck);
+        beginTime, offset, decided, feasibilityCheck, simplestCheck); //todo prob add offset, "this is how much to offset"
     
     if (ansTravelled >= 0) {
         if (decided) {
             int tmp = numReqs + vehicle.get_num_passengers();
             int schcnt = ansSchedule.size();
 
+            beginTime += offset;
+
             vector<int> order;
             vector<pair<int, int> > finalPath;
             int prevNode = vehicle.get_location();
             int passedDist = 0;
             for (int m = 0; m < ansPath.size(); m++) {
+                if (finalPath.size() > 0) {
+                    beginTime = finalPath[finalPath.size() - 1].first;
+                }
                 int node = ansPath[m].second;
                 order.clear();
                 find_path(prevNode - 1, node - 1, order);
@@ -301,6 +296,21 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
                     order[i] += 1;
                     passedDist += get_dist(order[i - 1], order[i], dist, simplestCheck);
                     finalPath.push_back(make_pair(beginTime + ceil((double(passedDist)) / velocity), order[i]));
+                }
+                if (finalPath.size() > 0) {
+                    int diff = finalPath[finalPath.size() - 1].first - ansPath[m].first;
+                    if (diff < 0) {
+                        if (beginTime < 0) {
+                            //shift them all; hopefully this never happens though?
+                            for (int i = 0; i < finalPath.size(); i++) {
+                                finalPath[i].first += diff;
+                            }
+                        }
+                        else {
+                            //just move the last one, like waiting for dropoff to occur
+                            finalPath[finalPath.size() - 1].first = ansPath[m].first;
+                        }
+                    }
                 }
                 prevNode = node;
             }

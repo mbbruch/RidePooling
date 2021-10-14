@@ -44,6 +44,9 @@ void print_stats(const std::string& outDir, const std::string& outFilename);
 
 void print_line(const std::string& outDir, const std::string& outFilename, const std::string& message);
 
+void write_route(const Vehicle& veh);
+void write_request(const Request& req);
+
 void log_stats();
 
 class costComponents {
