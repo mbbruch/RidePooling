@@ -22,16 +22,14 @@ using namespace std;
 
 
 int main(int argc, char* argv[]) {
-
-    char* reqFile = "C:/Code_Projects/RidePooling/In/requests.csv";//argv[1];
-    char* vehFile = "C:/Code_Projects/RidePooling/In/vehicles.csv";//argv[2];
+    std::string reqFile = "C:/Code_Projects/RidePooling/In/requests.csv";//argv[1];
+    std::string vehFile = "C:/Code_Projects/RidePooling/In/vehicles.csv";//argv[2];
     std::string filenameTime = GetCurrentTimeForFileName();
-    outDir = "C:/Code_Projects/RidePooling/Out/" + filenameTime + "/";
+    outDir = baseOutDir + filenameTime + "/";
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
     logFile = "logfile_" + filenameTime + ".txt";//argv[3];
     setupOutfiles(outDir, outFilename);
     //max_capacity = atoi(argv[4]);
-    map_of_pairs dist;
 
     print_line(outDir, logFile, "Initializing GRBEnv");
     GRBEnv* env;
@@ -54,12 +52,14 @@ int main(int argc, char* argv[]) {
 
     //  while ((getchar()) != '\n');
     print_line(outDir, logFile, "Start initializing");
-    initialize(false, dist);
+    treeCost.EdgeWeightsFile = Cost_File;
+    treeDist.EdgeWeightsFile = Dist_File;
+    treeCost.initialize(false);
+    treeDist.initialize(false);
     print_line(outDir, logFile, "load_end");
-
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
-    read_vehicles(vehFile, vehicles);
+    read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir, logFile, "Vehicles read in");
 
     vector<Request> requests;
@@ -70,9 +70,9 @@ int main(int argc, char* argv[]) {
 
     vector<Request> unserved;
 
-    FILE* in = get_requests_file(reqFile);
+    FILE* in = get_requests_file(reqFile.c_str());
     fclose(in);
-    in = get_requests_file(reqFile);
+    in = get_requests_file(reqFile.c_str());
 
     while (true) {
         auto beforeTime = std::chrono::system_clock::now();
@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
 
         handle_unserved(unserved, requests, now_time);
 
-        if (read_requests(in, requests, now_time + time_step, dist)) {
+        if (read_requests(in, requests, now_time + time_step)) {
             //Note: the read_requests code reads one request beyond now_time+time_step (unless it returns false)
             tail = requests.back();
             requests.pop_back();
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
             hasMore = false;
         }
 
-        update_vehicles(vehicles, requests, now_time, dist);
+        update_vehicles(vehicles, requests, now_time);
 
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Preprocessing time = %f", elapsed_seconds.count()));
@@ -135,29 +135,37 @@ int main(int argc, char* argv[]) {
 
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Dist map combo set up time = %f", elapsed_seconds.count()));
-		beforeTime = std::chrono::system_clock::now();		
-        reinitialize_dist_map(ongoingLocs, allToAll1, allToAll2, dist);
+		beforeTime = std::chrono::system_clock::now();
+        vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
+        set<int>().swap(allToAll1);
+        vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
+        set<int>().swap(allToAll2);
+        treeCost.reinitialize_dist_map(ongoingLocs, vec1, vec2);
+        treeDist.reinitialize_dist_map(ongoingLocs, vec1, vec2);
+        vector<int>().swap(vec1);
+        vector<int>().swap(vec2);
+        set<pair<int, int>>().swap(ongoingLocs);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Dist map set up time = %f", elapsed_seconds.count()));
 
 		beforeTime = std::chrono::system_clock::now();
-        RVGraph *RV = new RVGraph(vehicles, requests, dist);
+        RVGraph *RV = new RVGraph(vehicles, requests);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("RV build time = %f", elapsed_seconds.count()));
 
 		beforeTime = std::chrono::system_clock::now();
-        RTVGraph *RTV = new RTVGraph(RV, vehicles, requests, dist);
+        RTVGraph *RTV = new RTVGraph(RV, vehicles, requests);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("RTV build time = %f", elapsed_seconds.count()));
 
 		beforeTime = std::chrono::system_clock::now();
 
-        RTV->solve(env, vehicles, requests, unserved, dist);
+        RTV->solve(env, vehicles, requests, unserved);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Solving time = %f", elapsed_seconds.count()));
 
 		beforeTime = std::chrono::system_clock::now();
-        RTV->rebalance(env, vehicles, unserved, dist);
+        RTV->rebalance(env, vehicles, unserved);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Rebalancing time = %f", elapsed_seconds.count()));
 		
@@ -168,6 +176,7 @@ int main(int argc, char* argv[]) {
 //        printf("travel / total = %f / %f\n", travel_time, (double(tock - tick)) / CLOCKS_PER_SEC);
 
         log_stats();
+        //write_vehicle_routes(outDir, vehicles, now_time);
         print_stats(outDir, outFilename);
         for (auto it = utilization.begin(); it != utilization.end(); it++) {
             if (it->first > 0) {
@@ -178,7 +187,7 @@ int main(int argc, char* argv[]) {
             break;
         }
     }
-    finish_all(vehicles, unserved, dist);
+    finish_all(vehicles, unserved);
 
     print_stats(outDir, outFilename);
 

@@ -74,11 +74,10 @@ class RTVGraph {
     int getTIdx(const uos& trip);
 
     void add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost);
-    void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, map_of_pairs& dist);
+    void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
 
     void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, 
-        RVGraph* rvGraph, vector<Request>& requests,
-        map_of_pairs& dist);
+        RVGraph* rvGraph, vector<Request>& requests);
 
     void sort_edges();
 
@@ -92,18 +91,14 @@ class RTVGraph {
     );
 
 public:
-    RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles,
-        vector<Request>& requests, map_of_pairs& dist);
+    RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>& requests);
 
-    void rebalance(GRBEnv* env,
-        vector<Vehicle>& vehicles, vector<Request>& unserved,
-        map_of_pairs& dist);
+    void rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
 
 	void prune();
     void solve(GRBEnv* env,
         vector<Vehicle>& vehicles, vector<Request>& requests,
-        vector<Request>& unservedCollector,
-        map_of_pairs& dist);
+        vector<Request>& unservedCollector);
 
     friend bool equal_to_sub(vector<int>& compared, vector<int>& origin, int excludeIdx);
 

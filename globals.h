@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <chrono>
 using namespace std;
-
 extern int now_time;
 extern int total_reqs, served_reqs, these_reqs, these_served_reqs;
 extern long long total_dist, unserved_dist, raw_dist;
@@ -26,6 +25,19 @@ extern int dist_map_size;
 static const int max_capacity = 2;
 static const int max_trip_size = 8;
 static const std::chrono::time_point startTime = std::chrono::system_clock::now();
+static const char Dist_File[] = "C:/Code_Projects/RidePooling/In/austin.dist";// In the first line, two integers n, m represent the number of points and edges, 
+                                    //and in the next m lines, three integers U, V, C represent U->V has an edge of length C
+static const char Cost_File[] = "C:/Code_Projects/RidePooling/In/austin.cost";// In the first line, two integers n, m represent the number of points and edges, 
+                                    //and in the next m lines, three integers U, V, C represent U->V has an edge of length C
+static const char Node_File[] = "C:/Code_Projects/RidePooling/In/austin.co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
+                                    //of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
+static const char GPTree_File[] = "C:/Code_Projects/RidePooling/In/GP_Tree.data";
+static const char DistMap_FileShort[] = "dist_map_chicago.data";
+static const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/In/dist_map_chicago.data";
+static const char ST_File[] = "dist_map_chicago.data";
+static const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
+static const int Naive_Split_Limit = 33;//The sub-graph size is smaller than this value
+static const int INF = 0x3fffffff;
 
 extern const int time_step;
 extern const int max_node;
@@ -37,9 +49,12 @@ extern const int penalty;
 extern const int max_v_per_req;
 extern const int min_req_per_v;
 
-extern const double minimal;
-static const int INF = 0x3fffffff;
+extern const double pickupPenalty;
+extern const double delayPenalty;
 
+extern const double minimal;
+
+extern std::string baseOutDir;
 extern std::string outDir; 
 extern std::string logFile;
 
@@ -85,7 +100,6 @@ public:
         //return p.first * 31 + p.second;
     };
 };
-
 //typedef std::unordered_set<std::unordered_set<int>, MyHash> set_of_uos;
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;

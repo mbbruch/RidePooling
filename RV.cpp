@@ -34,7 +34,7 @@ void RVGraph::prune() {
     }
 }
 
-RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pairs& dist) {
+RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests) {
     /* Get arc costs and add arcs for request-vehicle matches*/
     int connected = 0;
     int disconnected = 0;
@@ -42,9 +42,9 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pa
     entries = 0;
     const int nVeh = vehicles.size();
     const int nReq = requests.size();
-    #pragma omp parallel for default(none) private(j) shared(vehicles, requests, dist)
+    #pragma omp parallel for default(none) private(j) shared(vehicles, requests, treeCost,treeDist)
     for (j = 0; j < nReq; j++) {
-        int closestDist = -1;
+        int lowestCost = -1;
         int closestNode = -1;
         Request thisReq = requests[j];
         Request* reqs[1];
@@ -53,15 +53,15 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pa
             if (vehicles[i].isAvailable()) {
                 Vehicle vehicleCopy = vehicles[i];
                 TravelHelper th;
-                int cost = th.travel(vehicleCopy, reqs, 1, dist, false);
+                int cost = th.travel(vehicleCopy, reqs, 1, false);
                 if (cost >= 0) {
                     if (vehicles[i].getAvailableSince() < 0) {
-                        closestDist = 0;
+                        lowestCost = 0;
                     }
-                    else if(0!=closestDist){
-                        int distance = get_dist(vehicleCopy.get_location(), thisReq.start, dist);
-                        if (closestDist < 0 || distance < closestDist) {
-                            closestDist = distance;
+                    else if(0!= lowestCost){
+                        int cost = treeCost.get_dist(vehicleCopy.get_location(), thisReq.start);
+                        if (lowestCost < 0 || cost < lowestCost) {
+                            lowestCost = cost;
                             closestNode = vehicleCopy.get_location();
                         }
                     }
@@ -70,7 +70,7 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pa
                 }
             }
         }
-        if (closestDist > 0) {
+        if (lowestCost > 0) {
             #pragma omp critical (addClosestNode)
             req_nearest_car_node.insert(make_pair(j, closestNode));
         }

@@ -3,9 +3,9 @@
 #include <cassert>
 #include <ctime>
 #include <map>
-#include "util.h"
 #include <set>
 #include <algorithm>
+#include <omp.h>
 #include "util.h"
 #include "travel.h"
 #include "GPtree.h"
@@ -31,15 +31,15 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
     set<int>& target, map<int, set<int> >& src_dst,
     vector<pair<int, int> >& path, vector<Request>& schedule,
     map<int, int>& occupancyChanges,
-    map_of_pairs& dist,
-    int travelled, int nowDelays, int& nowTime, int& offset, bool decided, bool feasibilityCheck, bool simplestCheck) {
+    int travelled, int nowDelays, int nowCost, int& nowTime, int nowOffset, bool decided, bool feasibilityCheck, bool simplestCheck) {
 
     /* If there's nowhere the car still needs to go, finished!*/
     if (target.size() == 0) {
-        if (nowDelays < ansDelays) {
+        if (nowCost < ansCost) {
             ansDelays = nowDelays;
-            //ansCost = nowCost;
+            ansCost = nowCost;
             ansTravelled = travelled;
+            ansOffset = nowOffset;
             if (decided) {
                 ansPath = path;
                 ansSchedule = schedule;
@@ -48,6 +48,8 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         return;
     }
 
+    int newDelays = nowDelays;
+    int newOffset = nowOffset;
     int prevLoc = vehicle.get_location(); //TODO is this "NextNode" or current location?
     /* Initialize tmpTarget to be all elements in (integer-sorted) set */
     vector<int> tmpTarget(target.begin(), target.end());
@@ -63,8 +65,19 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         getOffsPsngr.clear();
 
         /* Get the time from current location to node*/
-        int interDist = get_dist(prevLoc, node, dist, simplestCheck);
-        int newTime = nowTime + ceil((double(interDist)) / velocity);  //TODO PROBLEM: negative costs if the person gets picked up EARLY. they shouldn't be picked up early.
+        int interDist = 0;
+        vector<int> order;
+        int newCost = INF;
+#pragma omp critical (findpath)
+       {
+            newCost = treeCost.find_path(prevLoc - 1, node - 1, order);
+       }
+        order[0] += 1;
+        for (int i = 1; i < order.size(); i++) {
+            order[i] += 1;
+            interDist += treeDist.get_dist(order[i - 1], order[i], simplestCheck, true);
+        }
+        int newTime = nowTime + ceil((double(interDist)) / velocity*1.0);  //TODO PROBLEM: negative costs if the person gets picked up EARLY. they shouldn't be picked up early.
         /* If it's impossible to get to any of the request pickup spots before their max wait time, 
            this node shouldn't be visited at this point, so move on to the next node*/
         bool exceeded = false;
@@ -89,13 +102,44 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             }
         }
 
+        /* 1. Set "exceeded" flag if expectedOffTime isn't OK for any onBoard requests
+           2. For onBoard requests before "exceeded" is set, if this node in tmpTarget is the dropoff point:
+                a. Clear onBoard flag for the request
+                b. Increment cost with this trip's travel delay
+                c. Add request's index+time to getOffsReq
+        */
+        if (!exceeded) {
+            for (int i = 0; i < numReqs; i++) {
+                if (reqs[i]->status == Request::onBoard) {
+                    // total delay time exceeded
+                    if (newTime - reqs[i]->expectedOffTime > max_delay_sec) {
+                        exceeded = true;
+                        break; //TODO why isn't this continue?? some requests aren't checked
+                    }
+                    if (reqs[i]->end == node && reqs[i]->status == Request::onBoard) {
+                        reqs[i]->status = Request::droppedOff;
+                        if (decided) {
+                            reqs[i]->scheduledOffTime = newTime;
+                            schedule.push_back(*reqs[i]);
+                        }
+                        vehicle.updateOccupancyTracker(occupancyChanges, newTime, -1);
+                        int addlDelay = newTime - reqs[i]->expectedOffTime;
+                        if (addlDelay > 0) {
+                            newDelays += addlDelay;
+                        }
+                        // record who got off
+                        getOffsReq.push_back(make_pair(i, newTime));
+                    }
+                }
+            }
+        }
+
         /* If this node in tmpTarget is not already visited AND is a get-on node: 
             1. Insert all drop-off nodes of requests starting at the node into target
             2. Record that insertion in the "inserted" vector 
             3. Set all of those requests as onBoard
             4. Add all of those requests to "getOns" vector
         */
-        
         if (!visited && !exceeded) {
             auto itNode = src_dst.find(node);
 			if(itNode != src_dst.end()){
@@ -115,7 +159,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                             // TODO maybe add this back? 
                             //nowTime += timeDiff; //TODO should there be a +1 here?
                             if (newTime < 0) {
-                                offset = timeDiff;
+                                newOffset = timeDiff;
                             }
                             newTime = reqs[i]->reqTime;
                         }
@@ -131,40 +175,6 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             }
         }
 
-        int newDelays = nowDelays;
-
-        /* 1. Set "exceeded" flag if expectedOffTime isn't OK for any onBoard requests 
-           2. For onBoard requests before "exceeded" is set, if this node in tmpTarget is the dropoff point:
-                a. Clear onBoard flag for the request
-                b. Increment cost with this trip's travel delay
-                c. Add request's index+time to getOffsReq
-        */
-        if (!exceeded) {
-            for (int i = 0; i < numReqs; i++) {
-                if (reqs[i]->status==Request::onBoard) {
-                    // total delay time exceeded
-                    if (newTime - reqs[i]->expectedOffTime > max_delay_sec) {
-                        exceeded = true;
-                        break; //TODO why isn't this continue?? some requests aren't checked
-                    }
-                    if (reqs[i]->end == node) {
-                        reqs[i]->status = Request::droppedOff;
-                        if (decided) {
-                            reqs[i]->scheduledOffTime = newTime;
-                            schedule.push_back(*reqs[i]);
-                        }
-                        vehicle.updateOccupancyTracker(occupancyChanges, newTime, -1);
-                        int addlDelay = newTime - reqs[i]->expectedOffTime;
-                        if (addlDelay > 0) {
-                            newDelays += addlDelay;
-                        }
-                        // record who got off
-                        getOffsReq.push_back(make_pair(i, newTime));
-                    }
-                }
-            }
-        }
-
         /* For each preexisting passenger in the vehicle, IF the request is onBoard:
             1. If newTime is already too late to drop it off on time, set "exceeded" flag 
             2. Otherwise, IF this node in tmpTarget is the dropoff point:
@@ -175,9 +185,11 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                 e. add the request's delay time to newDelays
          */
         //TODO why is this never called with decided==TRUE?
-        vehicle.check_passengers(newTime, node, exceeded, newDelays,
+        int newPickups = 0;
+        vehicle.check_passengers(newTime, node, exceeded, newDelays, newPickups,
             getOffsPsngr, schedule, occupancyChanges, decided);
-        if (newDelays >= ansDelays) {
+        newCost = newCost + newPickups* pickupPenalty + newDelays * delayPenalty;
+        if (newCost >= ansCost) {
             exceeded = true;
         }
 
@@ -186,7 +198,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             target.erase(node);
             vehicle.set_location(node);
            
-            dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, dist, travelled + interDist, newDelays, newTime, offset, decided, feasibilityCheck, simplestCheck);
+            dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, travelled + interDist, newDelays, newCost, newTime, newOffset, decided, feasibilityCheck, simplestCheck);
 
             vehicle.set_location(prevLoc);
             target.insert(node);
@@ -218,6 +230,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         for (auto itRec = inserted.begin(); itRec != inserted.end(); itRec++) {
             target.erase(*itRec);
         }
+
         // printf("\n## b\n");
 //        if (feasibilityCheck && ansTravelled > 0) {
 //           return;
@@ -234,8 +247,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
 /// <param name="dist">Cache of node-to-node travel distances</param>
 /// <param name="decided">false=just determine cost; true=assign the path</param>
 /// <returns>Cost (travel time)</returns>
-int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs,
-map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
+int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool decided, bool feasibilityCheck, bool simplestCheck) {
 
     clock_t beginClock = clock();
     travel_cnt++;
@@ -253,6 +265,7 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     vehicle.insert_targets(target);
 
     ansDelays = max_delay_sec * numReqs;
+    ansCost = INF;
     ansTravelled = -1;
     ansSchedule.clear();
 
@@ -269,53 +282,63 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
     */
     map<int,int> occupancyChanges;
     vehicle.setup_occupancy_changes(occupancyChanges);
-    int offset = 0;
-    dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, dist, 0, 0,
-        beginTime, offset, decided, feasibilityCheck, simplestCheck); //todo prob add offset, "this is how much to offset"
+    dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyChanges, 0, 0, 0,
+        beginTime, 0, decided, feasibilityCheck, simplestCheck); //todo prob add offset, "this is how much to offset"
     
     if (ansTravelled >= 0) {
         if (decided) {
-            int tmp = numReqs + vehicle.get_num_passengers();
             int schcnt = ansSchedule.size();
 
-            beginTime += offset;
-
+            beginTime += ansOffset;
             vector<int> order;
             vector<pair<int, int> > finalPath;
             int prevNode = vehicle.get_location();
-            int passedDist = 0;
             for (int m = 0; m < ansPath.size(); m++) {
+                int passedDist = 0;
                 if (finalPath.size() > 0) {
                     beginTime = finalPath[finalPath.size() - 1].first;
                 }
                 int node = ansPath[m].second;
                 order.clear();
-                find_path(prevNode - 1, node - 1, order);
+
+                #pragma omp critical (findpath)
+                treeCost.find_path(prevNode - 1, node - 1, order);
                 order[0] += 1;
                 for (int i = 1; i < order.size(); i++) {
                     order[i] += 1;
-                    passedDist += get_dist(order[i - 1], order[i], dist, simplestCheck);
-                    finalPath.push_back(make_pair(beginTime + ceil((double(passedDist)) / velocity), order[i]));
+                    passedDist += treeDist.get_dist(order[i - 1], order[i], simplestCheck);
+                    finalPath.push_back(make_pair(beginTime + ceil((double(passedDist)) / velocity*1.0), order[i]));
                 }
                 if (finalPath.size() > 0) {
                     int diff = finalPath[finalPath.size() - 1].first - ansPath[m].first;
                     if (diff < 0) {
-                        if (beginTime < 0) {
-                            //shift them all; hopefully this never happens though?
-                            for (int i = 0; i < finalPath.size(); i++) {
-                                finalPath[i].first += diff;
+                        int min = finalPath[finalPath.size() - 1].first;
+                        int max = ansPath[m].first;
+                        set<int> timesToAdd;
+                        timesToAdd.insert(max);
+                        for (auto it = ansSchedule.begin(); it != ansSchedule.end(); it++) {
+                            if (it->scheduledOnTime <= min && it->end == ansPath[m].second) {
+                                timesToAdd.insert(it->scheduledOffTime);
+                            }
+                            if (it->scheduledOnTime >= min && it->start == ansPath[m].second && it->scheduledOnTime < max) {
+                                timesToAdd.insert(it->scheduledOnTime);
                             }
                         }
-                        else {
-                            //just move the last one, like waiting for dropoff to occur
-                            finalPath[finalPath.size() - 1].first = ansPath[m].first;
+                        for (auto it = timesToAdd.begin(); it != timesToAdd.end(); it++) {
+                            //car arrived early but must wait for pickups and/or dropoffs
+                            finalPath.push_back(make_pair(*it, ansPath[m].second));
                         }
+                    }
+                    else if(diff > 0) {
+                        //TODO investigate why this is needed sometimes: occurs when summed distance of 
+                        //finalPath's segments is longer than distance of O to D
+                        ansPath[m].second = finalPath[finalPath.size() - 1].first;
                     }
                 }
                 prevNode = node;
             }
-            vehicle.set_path(finalPath);
             vehicle.set_passengers(ansSchedule);
+            vehicle.set_path(finalPath);
         }
         clock_t endClock = clock();
         double this_time = (double(endClock - beginClock)) / CLOCKS_PER_SEC;
@@ -326,7 +349,7 @@ map_of_pairs& dist, bool decided, bool feasibilityCheck, bool simplestCheck) {
         // }
         // printf("\n");
         // printf("%d\n", ansTravelled);
-        return ansDelays;
+        return ansCost;
     } else {
         clock_t endClock = clock();
         double this_time = (double(endClock - beginClock)) / CLOCKS_PER_SEC;

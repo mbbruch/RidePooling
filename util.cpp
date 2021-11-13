@@ -17,6 +17,134 @@
 #include "GPtree.h"
 using namespace std;
 
+void save_vector(const vector<int>& v)
+{
+    printf("%d ", (int)v.size());
+    for (int i = 0; i < (int)v.size(); i++)printf("%d ", v[i]);
+    printf("\n");
+}
+void load_vector(vector<int>& v)
+{
+    v.clear();
+    int n, i, j;
+    int result = scanf("%d", &n);
+    if (result <= 0) {
+        exit(0);
+    }
+    if (n < 1000000000 && n >= 0) {
+        v.reserve(n);
+    }
+    else {
+        printf("%d\n", result);
+        v.reserve(n / n);
+        exit(0);
+    }
+    for (i = 0; i < n; i++)
+    {
+        scanf("%d", &j);
+        v.push_back(j);
+    }
+}
+void save_vector_vector(const vector<vector<int> >& v)
+{
+    printf("%d\n", (int)v.size());
+    for (int i = 0; i < (int)v.size(); i++)save_vector(v[i]);
+    printf("\n");
+}
+void load_vector_vector(vector<vector<int> >& v)
+{
+    v.clear();
+    int n, i, j;
+    scanf("%d", &n);
+    v.reserve(n);
+    vector<int>ls;
+    for (i = 0; i < n; i++)
+    {
+        load_vector(ls);
+        v.push_back(ls);
+    }
+}
+void save_vector_pair(const vector<pair<int, int> >& v)
+{
+    printf("%d ", (int)v.size());
+    for (int i = 0; i < (int)v.size(); i++)printf("%d %d ", v[i].first, v[i].second);
+    printf("\n");
+}
+void load_vector_pair(vector<pair<int, int> >& v)
+{
+    v.clear();
+    int n, i, j, k;
+    scanf("%d", &n);
+    v.reserve(n);
+    for (i = 0; i < n; i++)
+    {
+        scanf("%d%d", &j, &k);
+        v.push_back(make_pair(j, k));
+    }
+}
+void save_map_int_pair(map<int, pair<int, int> >& h)
+{
+    printf("%zd\n", h.size());
+    for (auto iter = h.begin(); iter != h.end(); iter++)
+        printf("%d %d %d\n", iter->first, iter->second.first, iter->second.second);
+}
+void load_map_int_pair(map<int, pair<int, int> >& h)
+{
+    int n, i, j, k, l;
+    scanf("%d", &n);
+    vector<pair<int, pair<int, int>>> temp;
+    temp.reserve(n);
+    for (i = 0; i < n; i++)
+    {
+        scanf("%d%d%d", &j, &k, &l);
+        temp.push_back(make_pair(j, pair<int, int>{k, l}));
+        //h[j] = make_pair(k, l);
+    }
+    map<int, pair<int, int>> tempMap((temp.begin()), temp.end());
+    h = tempMap;
+}
+void save_map_int_int(map<int, int>& h)
+{
+    printf("%zd\n", h.size());
+    for (auto iter = h.begin(); iter != h.end(); iter++)
+        printf("%d %d\n", iter->first, iter->second);
+}
+void load_map_int_int(map<int, int>& h)
+{
+    int n, i, j, k;
+    scanf("%d", &n);
+    vector<pair<int, int>> temp;
+    temp.reserve(n);
+    for (i = 0; i < n; i++)
+    {
+        scanf("%d%d", &j, &k);
+        temp.push_back(make_pair(j, k));
+        h[j] = k;
+    }
+    map<int, int> tempMap((temp.begin()), temp.end());
+    h = tempMap;
+}
+void save_map_intpair_int(map_of_pairs& h, FILE* out)
+{
+    fprintf(out, "%zd\n", h.size());
+    for (auto iter = h.begin(); iter != h.end(); iter++)
+        fprintf(out, "%d %d %d\n", iter->first.first, iter->first.second, iter->second);
+}
+void load_map_intpair_int(map_of_pairs& h)
+{
+    int n, i, j, k;
+    scanf("%d", &n);
+    vector<pair<pair<int, int>, int>> temp;
+    temp.reserve(n);
+    for (i = 0; i < n; i++)
+    {
+        scanf("%d%d%d", &i, &j, &k);
+        temp.push_back(make_pair(pair<int, int>{i, j}, k));
+        //h[make_pair(i, j)] = k;
+    }
+    map_of_pairs tempMap((temp.begin()), temp.end());
+    h = tempMap;
+}
 
 FILE* get_requests_file(const char* file) {
     FILE *in = NULL;
@@ -52,8 +180,7 @@ void setup_vehicles(int nCars, vector<Vehicle>& vehicles) {
     }
 }
 
-bool read_requests(FILE*& in, vector<Request>& requests, int toTime,
-    map_of_pairs& dist) {
+bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
     
     int num = 0;
     int start, end, reqTime;
@@ -64,7 +191,7 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime,
         if (num != EOF) {
             if (start != end) {
                 Request r(start, end, reqTime);
-                r.shortestDist = get_dist(start, end, dist);
+                r.shortestDist = treeDist.get_dist(start, end);
                 r.expectedOffTime = reqTime + ceil((double(r.shortestDist)) / velocity);
                 requests.push_back(r);
                 raw_dist += r.shortestDist;
@@ -94,18 +221,17 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
 }
 
 void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests,
-    int nowTime, map_of_pairs& dist) {
+    int nowTime) {
+    int i = 0;
     for (auto it = vehicles.begin(); it != vehicles.end(); it++) {
-        it->update(nowTime, requests, dist);
+        it->update(nowTime, requests, i);
+        i++;
     }
 }
 
-void finish_all(vector<Vehicle>& vehicles, vector<Request>& unserved, map_of_pairs& dist) {
-        
-    int idx = 0;
-    for (auto it = vehicles.begin(); it != vehicles.end(); it++) {
-        // printf("V #%d: ", idx++);
-        it->finish_route(dist);
+void finish_all(vector<Vehicle>& vehicles, vector<Request>& unserved) {
+    for (int i = 0; i < vehicles.size(); i++) {
+        vehicles[i].finish_route(i);
     }
     for (auto iter = unserved.begin(); iter != unserved.end(); iter++) {
         unserved_dist += iter->shortestDist;
@@ -116,6 +242,8 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
     std::filesystem::create_directories(outDir);
     std::filesystem::create_directories(outDir + "GurobiLogs/");
     std::filesystem::create_directories(outDir + "Routes/");
+    std::filesystem::create_directories(outDir + "Pickups/");
+    std::filesystem::create_directories(outDir + "Misc/");
     std::filesystem::create_directories(outDir + "Code/");
 	//std::filesystem::copy("/ocean/projects/eng200002p/mbruchon/Pooling", outDir + "Code/");
 	system(("cp -p /ocean/projects/eng200002p/mbruchon/RidePooling/*.* " + outDir + "Code/").c_str());
@@ -126,15 +254,7 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
 }
 
 void print_stats(const std::string& outDir, const std::string& outFilename) {
- /*   FILE *out = fopen(outFile, "w");
-    fprintf(out, "Service rate: %d / %d = %f\n",
-        served_reqs, total_reqs, (double(served_reqs)) / total_reqs);
-    fprintf(out, "Dratio = %f\n", double(total_dist + unserved_dist) / raw_dist);
-    fprintf(out, "Eratio = %f\n", double(total_dist) / (raw_dist - unserved_dist));
-    fprintf(out, "Total waiting time = %d\n", total_wait_time);
-    fclose(out);
-*/
-    std::ofstream ofs;
+ /*   std::ofstream ofs;
     ofs.open(outDir + outFilename, std::ofstream::out | std::ofstream::app);
     ofs << to_string(now_time) + "," + to_string(clock()) + "," +
         to_string(these_reqs) + "," + to_string(these_served_reqs) + "," + 
@@ -144,6 +264,7 @@ void print_stats(const std::string& outDir, const std::string& outFilename) {
         to_string(disconnectedCars) +
         "\n";
     ofs.close();
+*/
 }
 void print_line(const std::string& outDir, const std::string& outFilename, const std::string& message) {
 	auto end = std::chrono::system_clock::now();
@@ -154,18 +275,26 @@ void print_line(const std::string& outDir, const std::string& outFilename, const
     ofs.close();
 }
 
-void write_route(const Vehicle& veh) {
-
-}
-void write_request(const Request& req) {
+void write_vehicle_routes(const std::string& outDir, const std::vector<Vehicle>& vehicles, int now_time) {
+    std::ofstream ofs;
+    for (int i = 0; i < vehicles.size(); i++) {
+        ofs.open(outDir + "Routes/" + to_string(i) + ".csv", std::ofstream::out | std::ofstream::app);
+        for (auto iter = vehicles[i].scheduledPath.begin(); iter != vehicles[i].scheduledPath.end(); iter++) {
+            ofs << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "\n";
+        }
+        ofs.close();
+        for (auto iter = vehicles[i].passengers.begin(); iter != vehicles[i].passengers.end(); iter++) {
+            ofs.open(outDir + "Riders/" + to_string(iter->unique) + ".csv", std::ofstream::out | std::ofstream::app);
+            ofs << to_string(now_time) + "," + to_string(i) + "," + to_string(iter->start) + "," + to_string(iter->end) + "," +
+                to_string(iter->reqTime) + "," + to_string(iter->scheduledOnTime) + "," + to_string(iter->scheduledOffTime) + "," +
+                to_string(iter->status) + "\n";
+        }
+        ofs.close();
+    }
 }
 
 void log_stats() {
- //   printf("Service rate: %d / %d = %f\n",
- //       these_served_reqs, these_reqs, (double(these_served_reqs)) / these_reqs);
- //   printf("Dratio = %f\n", double(total_dist + unserved_dist) / raw_dist);
- //   printf("Eratio = %f\n", double(total_dist) / (raw_dist - unserved_dist));
- //   printf("Total waiting time = %d\n", total_wait_time);
+ // TBD
 }
 
 std::string GetCurrentTimeForFileName()
@@ -182,26 +311,4 @@ std::string GetCurrentTimeForFileName()
     s.erase(7, 1);
     s.erase(12, 1);
     return s;
-}
-
-costComponents::costComponents()
-{
-    distance = 0;
-    time = 0;
-    emissions_nox = 0;
-    emissions_sox = 0;
-    emissions_nh3 = 0;
-    emissions_pm = 0;
-    emissions_ghg = 0;
-}
-
-bool costComponents::operator<(const costComponents& other) const
-{
-    int cost1 = getTotal();
-    int cost2 = other.getTotal();
-    return cost1 < cost2 ? true : false;
-}
-
-double costComponents::getTotal() const {
-    return distance;
 }

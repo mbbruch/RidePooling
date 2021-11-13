@@ -22,8 +22,7 @@ public:
     unordered_map<int, int> req_nearest_car_node;
     set_of_pairs req_car;
     int entries;
-    RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests,
-        map_of_pairs& dist);
+    RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests);
 
     bool has_vehicle(int vehicle);
 
