@@ -66,17 +66,10 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
 
         /* Get the time from current location to node*/
         int interDist = 0;
-        vector<int> order;
         int newCost = INF;
-#pragma omp critical (findpath)
-       {
-            newCost = treeCost.find_path(prevLoc - 1, node - 1, order);
-       }
-        order[0] += 1;
-        for (int i = 1; i < order.size(); i++) {
-            order[i] += 1;
-            interDist += treeDist.get_dist(order[i - 1], order[i], simplestCheck, true);
-        }
+        std::pair<int,int> result = treeCost.get_dist(prevLoc - 1, node - 1);
+        newCost = result.first;
+        interDist += result.second;
         int newTime = nowTime + ceil((double(interDist)) / velocity*1.0);  //TODO PROBLEM: negative costs if the person gets picked up EARLY. they shouldn't be picked up early.
         /* If it's impossible to get to any of the request pickup spots before their max wait time, 
            this node shouldn't be visited at this point, so move on to the next node*/
@@ -300,13 +293,12 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                 }
                 int node = ansPath[m].second;
                 order.clear();
-
                 #pragma omp critical (findpath)
                 treeCost.find_path(prevNode - 1, node - 1, order);
                 order[0] += 1;
                 for (int i = 1; i < order.size(); i++) {
                     order[i] += 1;
-                    passedDist += treeDist.get_dist(order[i - 1], order[i], simplestCheck);
+                    passedDist += treeCost.get_dist(order[i - 1], order[i], simplestCheck).second;
                     finalPath.push_back(make_pair(beginTime + ceil((double(passedDist)) / velocity*1.0), order[i]));
                 }
                 if (finalPath.size() > 0) {

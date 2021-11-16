@@ -313,7 +313,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 			elements.shrink_to_fit();
 			const int elementSize = elements.size();
             //std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
-            #pragma omp parallel for default(none) shared(newTrips, elements, requests, k,thisSizeCounter, vehConnex, rvGraph, treeCost, treeDist)
+            #pragma omp parallel for default(none) shared(newTrips, elements, requests, k,thisSizeCounter, vehConnex, rvGraph, treeCost)
             for (int j = 0; j < elementSize; j++) {
                 if (!bFullyConnectedVeh && !(bSparseTwo && k == 2)) {
                     const auto endRC = rvGraph->req_car.end();
@@ -558,7 +558,7 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
     int m;
     const int vehsize = vehicles.size();
 	print_line(outDir,logFile,std::string("Starting parallel section."));
-	#pragma omp parallel for default(none) private(m) shared(vehicles, rvGraph, requests, vehIDToVehIdx, treeCost, treeDist)
+	#pragma omp parallel for default(none) private(m) shared(vehicles, rvGraph, requests, vehIDToVehIdx, treeCost)
     for (m=0; m < vehsize; m++) {
         if (rvGraph->has_vehicle(m)) {
             build_single_vehicle(m, vehIDToVehIdx[m], vehicles, rvGraph, requests);
@@ -595,7 +595,7 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
     for (int i = 0; i < idleCnt; i++) {
         GRBLinExpr vEdgesCnt = 0;
         for (int j = 0; j < unservedCnt; j++) {
-            objective += y[i][j] * treeCost.get_dist(vehicles[idleVIds[i]].get_location(), unserved[j].start);
+            objective += y[i][j] * treeCost.get_dist(vehicles[idleVIds[i]].get_location(), unserved[j].start).first;
             totalEdgesCnt += y[i][j];
             vEdgesCnt += y[i][j];
             rEdgesCnt[j] += y[i][j];

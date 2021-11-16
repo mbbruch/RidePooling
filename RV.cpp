@@ -42,7 +42,7 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests) {
     entries = 0;
     const int nVeh = vehicles.size();
     const int nReq = requests.size();
-    #pragma omp parallel for default(none) private(j) shared(vehicles, requests, treeCost,treeDist)
+    #pragma omp parallel for default(none) private(j) shared(vehicles, requests, treeCost)
     for (j = 0; j < nReq; j++) {
         int lowestCost = -1;
         int closestNode = -1;
@@ -59,7 +59,7 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests) {
                         lowestCost = 0;
                     }
                     else if(0!= lowestCost){
-                        int cost = treeCost.get_dist(vehicleCopy.get_location(), thisReq.start);
+                        cost = treeCost.get_dist(vehicleCopy.get_location(), thisReq.start).first;
                         if (lowestCost < 0 || cost < lowestCost) {
                             lowestCost = cost;
                             closestNode = vehicleCopy.get_location();

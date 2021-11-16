@@ -171,7 +171,7 @@ void Vehicle::set_passengers(vector<Request>& psngrs) {
 
 void Vehicle::head_for(int node, int departureTimeFromNode) {
     vector<int> order;
-#pragma omp critical (findpath)
+    #pragma omp critical (findpath)
     treeCost.find_path(this->location - 1, node - 1, order);
     while (!this->scheduledPath.empty()) {
         this->scheduledPath.pop();
@@ -186,7 +186,7 @@ void Vehicle::head_for(int node, int departureTimeFromNode) {
     }
     for (int i = 1; i < order.size(); i++) { // head is location itself
         order[i] += 1;
-        distTravelled += treeDist.get_dist(order[i-1], order[i]);
+        distTravelled += treeCost.get_dist(order[i-1], order[i]).second;
         tmpTime = baseTime + ceil((double(distTravelled)) / velocity);
         this->scheduledPath.push(make_pair(tmpTime, order[i]));
     }

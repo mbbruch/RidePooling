@@ -53,15 +53,68 @@ int main(int argc, char* argv[]) {
     //  while ((getchar()) != '\n');
     print_line(outDir, logFile, "Start initializing");
     treeCost.EdgeWeightsFile = Cost_File;
-    treeDist.EdgeWeightsFile = Dist_File;
     treeCost.initialize(false);
-    treeDist.initialize(false);
+    vector<int> order1, order2;
+    std::pair<int, int> result1, result2;
+
+    result1 = treeCost.find_path(1 - 1, 5 - 1, order1);
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
     read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir, logFile, "Vehicles read in");
 
+    vector<int> results1;
+    results1.reserve(500 * 500);
+    int i = 0;
+    int j = 0;
+    std::vector<int> out;
+    treeCost.G.dijkstra(101 - 1, out);
+ //   #pragma omp parallel for default(none) private(i) shared(treeCost)
+ //   for (i = 1; i < 500; i++) {
+   //     out = treeCost.G.find_path(76 - 1, 143 - 1);
+    //}
+    int yes = 5;
+//#pragma omp parallel for default(none) private(i) shared(treeCost)
+//    for (i = 1; i < 500; i++) {
+  //      result1 = treeCost.find_path(76 - 1, 143 - 1, order1);
+    //}
+    int correct = 0;
+    int incorrect = 0;
+    out = treeCost.G.find_path(101 - 1, 455 - 1);
+    result1 = treeCost.get_dist(101 - 1, 455 - 1);
+
+ //   #pragma omp parallel for default(none) private(i,j) shared(treeCost)
+    for (i = 1; i < 500; i++) {
+        for (j = 1; j < 500; j++) {
+            result1 = treeCost.find_path(i - 1, j - 1, order1);
+            result2 = treeCost.get_dist(i, j);
+            if (result1 != result2) {
+                incorrect++;
+                if (result1.first < result2.first) {
+                    bool suboptimal = false;
+                }
+            }
+            else {
+                correct++;
+            }
+        }
+    }
+
+    int x = correct; int y = incorrect;
+    vector<int> results2;
+    results2.reserve(500 * 500);
+//#pragma omp parallel for default(none) private(i,j) shared(treeCost)
+    for (i = 1; i < 500; i++) {
+        for (j = 1; j < 500; j++) {
+        }
+    }
+
+    for (int i = 0; i < results1.size(); i++) {
+        if (results1[i] != results2[i]) {
+            int x = 5;
+        }
+}
     vector<Request> requests;
     requests.reserve(100);
 
@@ -129,7 +182,7 @@ int main(int argc, char* argv[]) {
             allToAll1.emplace(requests[i].start);
             allToAll2.insert({ requests[i].start, requests[i].end });
         }
-        map_of_pairs dist{ 2*(ongoingLocs.size() +
+        pairs_to_pairs dist{ 2*(ongoingLocs.size() +
             (allToAll1.size() * (allToAll1.size() - 1) / 2) +
             (allToAll2.size() * (allToAll2.size() - 1) / 2)) };
 
@@ -141,7 +194,6 @@ int main(int argc, char* argv[]) {
         vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
         set<int>().swap(allToAll2);
         treeCost.reinitialize_dist_map(ongoingLocs, vec1, vec2);
-        treeDist.reinitialize_dist_map(ongoingLocs, vec1, vec2);
         vector<int>().swap(vec1);
         vector<int>().swap(vec2);
         set<pair<int, int>>().swap(ongoingLocs);

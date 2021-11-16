@@ -4,6 +4,7 @@
 #include<cstdlib>
 #include<cstring>
 #include<vector>
+#include<utility>
 #include<ctime>
 #include<fstream>
 #include<algorithm>
@@ -24,7 +25,7 @@ int times[10];//辅助计时变量；
 
 using namespace std;
 
-GPTree treeCost, treeDist;
+GPTree treeCost;
 
 const bool DEBUG_ = false;
 const bool Optimization_G_tree_Search = true;//Whether to enable full connection acceleration algorithm
@@ -91,13 +92,13 @@ void GPTree::read()
 	G.init(G.n, G.m);
 	for (int i = 0; i<G.n; i++)G.id[i] = i;
 	int i, j, k;
-	float l;
+	float l, m;
 	for (i = 0; i<G.m; i++)//Iterate over edges
 	{
 		//int temp;
-		fscanf(in, "%d %d %f \n", &j, &k, &l);
-		if (RevE == false)G.add_D(j - 1, k - 1, (int)l);//One-way edge
-		else G.add(j - 1, k - 1, l);//Two-way edge
+		fscanf(in, "%d %d %f %f\n", &j, &k, &l, &m);
+		if (RevE == false)G.add_D(j - 1, k - 1, l, m);//One-way edge
+		else G.add(j - 1, k - 1, l, m);//Two-way edge
 	}
 	fclose(in);
 	if (Optimization_Euclidean_Cut) //TODO revisit; would this help?
@@ -157,7 +158,7 @@ void GPTree::initialize(bool load_cache) {
 		//TIME_TICK_START
 		init_rand();
 		read();
-		Additional_Memory = 2 * G.n*log2(G.n);
+		Additional_Memory = 16 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("load from cache")
@@ -166,7 +167,7 @@ void GPTree::initialize(bool load_cache) {
 		//TIME_TICK_START
 		init_rand();
 		read();
-		Additional_Memory = 2 * G.n*log2(G.n);
+		Additional_Memory = 16 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		build();
 		//TIME_TICK_END
@@ -179,14 +180,14 @@ void GPTree::initialize(bool load_cache) {
 void GPTree::save_dist_map() {
 
 	FILE* out = fopen(DistMap_File, "w");
-	save_map_intpair_int(dist_map,out);
+	save_map_intpair_intpair(dist_map,out);
 	fclose(out);
 }
 
 void GPTree::load_dist_map()
 {
 	FILE* in = fopen(DistMap_File, "r");
-	load_map_intpair_int(dist_map);
+	load_map_intpair_intpair(dist_map);
 	fclose(in);
 }
 
@@ -388,6 +389,7 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 	}
 	else if (node[x].n>50)cout << endl;
 	node[x].dist.init(node[x].borders.size());
+	node[x].dist2.init(node[x].borders.size());
 	node[x].order.init(node[x].borders.size());
 	node[x].order.cover(-INF);
 	if (x == 1)//x build for root dist
@@ -401,9 +403,9 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 		printf("begin_build_border_in_father_son\n");
 		build_border_in_father_son();
 		printf("begin_build_dist\n");
-		build_dist1(root);
-		printf("begin_build_dist2\n");
-		build_dist2(root);
+		build_dist_part1(root);
+		printf("begin_build_dist_part2\n");
+		build_dist_part2(root);
 		//Calculate the leaf number where each node is located
 		id_in_node.clear();
 		for (int i = 0; i<node[root].G.n; i++)id_in_node.push_back(-1);
@@ -417,6 +419,7 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 			for (int j = 0; j<node[i].borders.size(); j++)
 			{
 				node[i].cache_dist.push_back(0);
+				node[i].cache_dist2.push_back(0);
 				node[i].min_car_dist.push_back(make_pair(INF, -1));
 			}
 		}
@@ -431,39 +434,42 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 
 }
 
-void GPTree::build_dist1(int x)//自下而上归并子图内部dist
+//Bottom-up merge subgraph interior dist
+void GPTree::build_dist_part1(int x)
 {
-	//计算子结点内部dist并传递给x
-	for (int i = 0; i<node[x].part; i++)if (node[x].son[i])build_dist1(node[x].son[i]);
+	//Calculate the internal dist of the child node and pass it to x
+	for (int i = 0; i<node[x].part; i++)if (node[x].son[i])build_dist_part1(node[x].son[i]);
 	if (node[x].son[0])//非叶子
 	{
-		//建立x子结点之间的边
+		//Create edges between x sub-nodes
 		node[x].make_border_edge();
-		//计算内部真实dist矩阵
-		node[x].dist.floyd(node[x].order);
+		//Calculate the internal real dist matrix
+		node[x].dist.floyd(node[x].order, node[x].dist2);
 	}
-	else;//叶子
-		 //向父节点传递内部边权
+	else;//leaf
+		 //Pass internal edge weights to parent node
 	if (node[x].father)
 	{
 		int y = node[x].father, i, j;
 		vector<int>id_in_fa(node[x].borders.size());
-		//计算子图border在父节点border序列中的编号,不存在为-1
+		//Calculate the number of the border of the subgraph in the border sequence of the parent node, if it does not exist, it is -1
 		for (auto x_iter1 = node[x].borders.begin(); x_iter1 != node[x].borders.end(); x_iter1++)
 		{
 			auto y_iter1 = node[y].borders.find(x_iter1->first);
 			if (y_iter1 == node[y].borders.end())id_in_fa[x_iter1->second.first] = -1;
 			else id_in_fa[x_iter1->second.first] = y_iter1->second.first;
 		}
-		//将子图内部的全连接边权传递给父亲
+		//Pass the fully connected edge rights inside the subgraph to the father
 		for (i = 0; i<(int)node[x].borders.size(); i++)
 			for (j = 0; j<(int)node[x].borders.size(); j++)
 				if (id_in_fa[i] != -1 && id_in_fa[j] != -1)
 				{
 					int* p = &node[y].dist.a[id_in_fa[i]][id_in_fa[j]];
+					int* p2 = &node[y].dist2.a[id_in_fa[i]][id_in_fa[j]];
 					if ((*p)>node[x].dist.a[i][j])
 					{
 						(*p) = node[x].dist.a[i][j];
+						(*p2) = node[x].dist2.a[i][j];
 						node[y].order.a[id_in_fa[i]][id_in_fa[j]] = -3;
 					}
 				}
@@ -471,12 +477,13 @@ void GPTree::build_dist1(int x)//自下而上归并子图内部dist
 	return;
 }
 
-void GPTree::build_dist2(int x)//自上而下修正子图外部dist
+//Correct the subgraph external dist from top to bottom
+void GPTree::build_dist_part2(int x)
 {
-	if (x != root)node[x].dist.floyd(node[x].order);
+	if (x != root)node[x].dist.floyd(node[x].order, node[x].dist2);
 	if (node[x].son[0])
 	{
-		//计算此节点border编号在子图中border序列的编号
+		//Calculate the number of this node's border number in the border sequence of the subgraph
 		vector<int>id_(node[x].borders.size());
 		vector<int>color_(node[x].borders.size());
 		for (auto iter1 = node[x].borders.begin(); iter1 != node[x].borders.end(); iter1++)
@@ -486,26 +493,29 @@ void GPTree::build_dist2(int x)//自上而下修正子图外部dist
 			int y = node[x].son[c];
 			id_[iter1->second.first] = node[y].borders[iter1->first].first;
 		}
-		//修正子图边权
+		//Modified subgraph edge weight
 		for (int i = 0; i<(int)node[x].borders.size(); i++)
 			for (int j = 0; j<(int)node[x].borders.size(); j++)
 				if (color_[i] == color_[j])
 				{
 					int y = node[x].son[color_[i]];
 					int* p = &node[y].dist.a[id_[i]][id_[j]];
+					int* p2 = &node[y].dist2.a[id_[i]][id_[j]];
 					if ((*p)>node[x].dist.a[i][j])
 					{
 						(*p) = node[x].dist.a[i][j];
+						(*p) = node[x].dist2.a[i][j];
 						node[y].order.a[id_[i]][id_[j]] = -2;
 					}
 				}
-		//递归子节点
+		//Recursive child node
 		for (int i = 0; i<node[x].part; i++)
-			if (node[x].son[i])build_dist2(node[x].son[i]);
+			if (node[x].son[i])build_dist_part2(node[x].son[i]);
 	}
 }
 
-void GPTree::build_border_in_father_son()//计算每个结点border在父亲/儿子borders数组中的编号
+//Calculate the number of each node's border in the father/son borders array
+void GPTree::build_border_in_father_son()
 {
 	int i, j, x, y;
 	for (x = 1; x<node_tot; x++)
@@ -571,16 +581,19 @@ int GPTree::real_border_number(int x)
 
 //FROM HERE BELOW: functions not currently in use
 
-int GPTree::search(int S, int T)//Query the shortest path length of S-T
+std::pair<int, int> GPTree::search(int S, int T)//Query the shortest path length of S-T
 {
-	if (S == T)return 0;
+	if (S == T)return std::pair<int, int>{0, 0};
 
-	int i, j, k, p;
+	int i, j, k, k2, p;
 	int LCA, x = id_in_node[S], y = id_in_node[T];
 	LCA = find_LCA(x, y);
-	vector<int>dist[2], dist_;
+	vector<int>dist[2];
 	dist[0].push_back(0);
 	dist[1].push_back(0);
+	vector<int>dist2[2];
+	dist2[0].push_back(0);
+	dist2[1].push_back(0);
 	//Naive G-Tree calculation
 	for (int t = 0; t < 2; t++)
 	{
@@ -588,7 +601,7 @@ int GPTree::search(int S, int T)//Query the shortest path length of S-T
 		else p = y;
 		while (node[p].father != LCA)
 		{
-			push_borders_up(p, dist[t], t);
+			push_borders_up(p, dist[t], dist2[t], t);
 			p = node[p].father;
 		}
 		if (t == 0)x = p;
@@ -603,46 +616,57 @@ int GPTree::search(int S, int T)//Query the shortest path length of S-T
 			if (node[p].border_in_father[i] != -1)
 			{
 				id[t].push_back(node[p].border_in_father[i]);
-				dist[t][j] = dist[t][i];
+				dist[t][j]  = dist[t][i];
+				dist2[t][j] = dist2[t][i];
 				j++;
 			}
 		while (dist[t].size() > id[t].size()) { dist[t].pop_back(); }
 	}
 	//Final match
 	int MIN = INF;
+	int min2 = INF;
 	for (i = 0; i < dist[0].size(); i++)
 	{
 		int i_ = id[0][i];
 		for (j = 0; j < dist[1].size(); j++)
 		{
 			k = dist[0][i] + dist[1][j] + node[LCA].dist.a[i_][id[1][j]];
-			if (k < MIN)MIN = k;
+			k2 = dist2[0][i] + dist2[1][j] + node[LCA].dist2.a[i_][id[1][j]];
+			if (k < MIN) {
+				MIN = k;
+				min2 = k2;
+			}
 		}
 	}
-	return MIN;
+	return std::pair<int, int>{MIN, min2};
 }
 //Record the shortest path length from S to the boundary point of node x in dist1, 
 //calculate the distance from S to the real border of x.father,
 //update dist1 
 //type==0 push up, type==1 push down
-void GPTree::push_borders_up(int x, vector<int>& dist1, int type)//将S到结点x边界点的最短路长度记录在dist1中，计算S到x.father真实border的距离更新dist1 type==0上推,type==1下推
+void GPTree::push_borders_up(int x, vector<int>& dist1, vector<int>& dist2, int type)
 {
 	if (node[x].father == 0)return;
 
 	int y = node[x].father;
-	vector<int>dist2(node[y].borders.size(), INF);
-	for (int i = 0; i < node[x].borders.size(); i++)
-		if (node[x].border_in_father[i] != -1)
-			dist2[node[x].border_in_father[i]] = dist1[i];
+	vector<int>dist1_2(node[y].borders.size(), INF);
+	vector<int>dist2_2(node[y].borders.size(), INF);
+	for (int i = 0; i < node[x].borders.size(); i++) {
+		if (node[x].border_in_father[i] != -1) {
+			dist1_2[node[x].border_in_father[i]] = dist1[i];
+			dist2_2[node[x].border_in_father[i]] = dist2[i];
+		}
+	}
 
 	int** dist = node[y].dist.a;
+	int** dist_2ndary = node[y].dist2.a;
 	int* begin, * end;
 	begin = new int[node[x].borders.size()];
 	end = new int[node[y].borders.size()];
 	int tot0 = 0, tot1 = 0;
-	for (int i = 0; i < dist2.size(); i++)
+	for (int i = 0; i < dist1_2.size(); i++)
 	{
-		if (dist2[i] < INF)begin[tot0++] = i;
+		if (dist1_2[i] < INF)begin[tot0++] = i;
 		else if (node[y].border_in_father[i] != -1)end[tot1++] = i;
 	}
 	if (type == 0)
@@ -653,8 +677,10 @@ void GPTree::push_borders_up(int x, vector<int>& dist1, int type)//将S到结点
 			for (int j = 0; j < tot1; j++)
 			{
 				int j_ = end[j];
-				if (dist2[j_] > dist2[i_] + dist[i_][j_])
-					dist2[j_] = dist2[i_] + dist[i_][j_];
+				if (dist1_2[j_] > dist1_2[i_] + dist[i_][j_]) {
+					dist1_2[j_] = dist1_2[i_] + dist[i_][j_];
+					dist2_2[j_] = dist2_2[i_] + dist_2ndary[i_][j_];
+				}
 			}
 		}
 	}
@@ -665,25 +691,26 @@ void GPTree::push_borders_up(int x, vector<int>& dist1, int type)//将S到结点
 			for (int j = 0; j < tot1; j++)
 			{
 				int j_ = end[j];
-				if (dist2[j_] > dist2[i_] + dist[j_][i_])
-					dist2[j_] = dist2[i_] + dist[j_][i_];
+				if (dist1_2[j_] > dist1_2[i_] + dist[j_][i_])
+					dist1_2[j_] = dist1_2[i_] + dist[j_][i_];
 			}
 		}
 	}
 
-	dist1 = dist2;
+	dist1 = dist1_2;
+	dist2 = dist2_2;
 	delete[] begin;
 	delete[] end;
 }
 
 //FROM HERE BELOW: the functions that are actually called during the simulations
-int GPTree::get_dist(int S, int T, bool simplestCheck, bool bOnlySearchCache) {
+std::pair<int, int> GPTree::get_dist(int S, int T, bool simplestCheck, bool bOnlySearchCache) {
 	if (S == T) {
-		return 0;
+		return std::pair<int,int>{0,0};
 	}
 
 	if (bOnlySearchCache) {
-		int toReturn = search_cache(S - 1, T - 1);
+		std::pair<int, int> toReturn = search_cache(S - 1, T - 1);
 		return toReturn;
 	}
 	else {
@@ -692,7 +719,7 @@ int GPTree::get_dist(int S, int T, bool simplestCheck, bool bOnlySearchCache) {
 			return found->second;
 		}
 		else {
-			int toReturn = search_cache(S - 1, T - 1);
+			std::pair<int, int> toReturn = search_cache(S - 1, T - 1);
 			return toReturn;
 		}
 	}
@@ -702,9 +729,9 @@ int GPTree::get_dist(int S, int T, bool simplestCheck, bool bOnlySearchCache) {
 //and process the cache of the nodes along the way as the result of S. 
 //The part with weight >=bound is not calculated. 
 //If not, the pruning returns to INF
-int GPTree::search_cache(int S, int T, int bound){
+std::pair<int,int> GPTree::search_cache(int S, int T, int bound){
 	//Simple G-Tree calculation and cache maintenance
-	if (S == T)return 0;
+	if (S == T)return std::pair<int,int>{0,0};
 	int i, j, k, p;
 	int x = id_in_node[S], y = id_in_node[T];
 	int LCA = find_LCA(x, y);
@@ -730,28 +757,29 @@ int GPTree::search_cache(int S, int T, int bound){
 	node[id_in_node[S]].cache_bound = bound;
 	node[id_in_node[S]].min_border_dist = 0;
 	node[id_in_node[S]].cache_dist[0] = 0;
+	node[id_in_node[S]].cache_dist2[0] = 0;
 	for (i = 0; i + 1<node_path[0].size(); i++)
 	{
-		if (node[node_path[0][i]].min_border_dist >= bound)return INF;
+		if (node[node_path[0][i]].min_border_dist >= bound)return std::pair<int,int>{INF,INF};
 		#pragma omp critical (pushborderscache)
 		push_borders_up_cache(node_path[0][i]);
 	}
 
 	//Calculate the cache of T at the lower node of LCA
-	if (node[x].min_border_dist >= bound)return INF;
+	if (node[x].min_border_dist >= bound)return std::pair<int, int>{INF, INF};
 	#pragma omp critical (pushborderscache)
 	push_borders_brother_cache(x, y);
 	//Push the data of T in the lower layer of LCA to the bottom node T
 for (int i = node_path[1].size() - 1; i > 0; i--)
 {
-	if (node[node_path[1][i]].min_border_dist >= bound)return INF;
+	if (node[node_path[1][i]].min_border_dist >= bound)return std::pair<int, int>{INF, INF};
 
 #pragma omp critical (pushborderscache)
 	push_borders_down_cache(node_path[1][i], node_path[1][i - 1]);
 }
 
 //Final answer
-return node[id_in_node[T]].cache_dist[0];
+return std::pair<int, int>{node[id_in_node[T]].cache_dist[0], node[id_in_node[T]].cache_dist2[0]};
 }
 
 //Cache the shortest path length from S to the boundary point of node x in x.cache_dist, 
@@ -765,23 +793,36 @@ void GPTree::push_borders_up_cache(int x, int bound)
 	node[y].cache_id = node[x].cache_id;
 	node[y].cache_bound = bound;
 	vector<int>* dist1 = &node[x].cache_dist, * dist2 = &node[y].cache_dist;
+	vector<int>* dist1_2ndary = &node[x].cache_dist2, * dist2_2ndary = &node[y].cache_dist2;
 	for (int i = 0; i < (*dist2).size(); i++)(*dist2)[i] = INF;
+	for (int i = 0; i < (*dist2_2ndary).size(); i++)(*dist2_2ndary)[i] = INF;
 	for (int i = 0; i < node[x].borders.size(); i++)
 		if (node[x].border_in_father[i] != -1)
 		{
-			if (node[x].cache_dist[i] < bound)//cache within bounds
+			if (node[x].cache_dist[i] < bound) { //cache within bounds
 				(*dist2)[node[x].border_in_father[i]] = (*dist1)[i];
-			else (*dist2)[node[x].border_in_father[i]] = -1;//cache outside of bounds
+				(*dist2_2ndary)[node[x].border_in_father[i]] = (*dist1_2ndary)[i];
+			}
+			else { //cache outside of bounds
+				(*dist2)[node[x].border_in_father[i]] = -1;
+				(*dist2_2ndary)[node[x].border_in_father[i]] = -1;
+			}
 		}
 	int** dist = node[y].dist.a;
+	int** dist_2ndary = node[y].dist2.a;
 	int* begin, * end;//Calculated serial number, uncalculated serial number
 	begin = new int[node[x].borders.size()];
 	end = new int[node[y].borders.size()];
 	int tot0 = 0, tot1 = 0;
 	for (int i = 0; i < (*dist2).size(); i++)
 	{
-		if ((*dist2)[i] == -1)(*dist2)[i] = INF;
-		else if ((*dist2)[i] < INF)begin[tot0++] = i;
+		if ((*dist2)[i] == -1) {
+			(*dist2)[i] = INF; 
+			(*dist2_2ndary)[i] = INF;
+		}
+		else if ((*dist2)[i] < INF){
+			begin[tot0++] = i;
+		}		
 		else if (node[y].border_in_father[i] != -1)
 		{
 			if (Optimization_Euclidean_Cut == false || Euclidean_Dist(node[x].cache_id, node[y].border_id[i]) < bound)
@@ -793,8 +834,11 @@ void GPTree::push_borders_up_cache(int x, int bound)
 		int i_ = begin[i];
 		for (int j = 0; j < tot1; j++)
 		{
-			if ((*dist2)[end[j]] > (*dist2)[i_] + dist[i_][end[j]])
+			if ((*dist2)[end[j]] > (*dist2)[i_] + dist[i_][end[j]]) {
 				(*dist2)[end[j]] = (*dist2)[i_] + dist[i_][end[j]];
+				(*dist2_2ndary)[end[j]] = (*dist2_2ndary)[i_] + dist_2ndary[i_][end[j]];
+
+			}
 		}
 	}
 	delete[] begin;
@@ -814,23 +858,36 @@ void GPTree::push_borders_down_cache(int x, int y, int bound)
 	node[y].cache_id = node[x].cache_id;
 	node[y].cache_bound = bound;
 	vector<int>* dist1 = &node[x].cache_dist, * dist2 = &node[y].cache_dist;
+	vector<int>* dist1_2ndary = &node[x].cache_dist2, * dist2_2ndary = &node[y].cache_dist2;
 	for (int i = 0; i < (*dist2).size(); i++)(*dist2)[i] = INF;
+	for (int i = 0; i < (*dist2_2ndary).size(); i++)(*dist2_2ndary)[i] = INF;
 	for (int i = 0; i < node[x].borders.size(); i++)
 		if (node[x].son[node[x].color[node[x].border_id_innode[i]]] == y)
 		{
-			if (node[x].cache_dist[i] < bound)//begin within the bound
+			if (node[x].cache_dist[i] < bound) { //begin within the bound
 				(*dist2)[node[x].border_in_son[i]] = (*dist1)[i];
-			else (*dist2)[node[x].border_in_son[i]] = -1;//begin outside the bound
+				(*dist2_2ndary)[node[x].border_in_son[i]] = (*dist1_2ndary)[i];
+			}
+			else { //begin outside the bound
+				(*dist2)[node[x].border_in_son[i]] = -1;
+				(*dist2_2ndary)[node[x].border_in_son[i]] = -1;
+			}
 		}
 	int** dist = node[y].dist.a;
+	int** dist_2ndary = node[y].dist2.a;
 	int* begin, * end;//Calculated serial number, uncalculated serial number
 	begin = new int[node[y].borders.size()];
 	end = new int[node[y].borders.size()];
 	int tot0 = 0, tot1 = 0;
 	for (int i = 0; i < (*dist2).size(); i++)
 	{
-		if ((*dist2)[i] == -1)(*dist2)[i] = INF;
-		else if ((*dist2)[i] < INF)begin[tot0++] = i;
+		if ((*dist2)[i] == -1) {
+			(*dist2)[i] = INF;
+			(*dist2_2ndary)[i] = INF;
+		}
+		else if ((*dist2)[i] < INF) {
+			begin[tot0++] = i;
+		}
 		else
 		{
 			if (Optimization_Euclidean_Cut == false || Euclidean_Dist(node[x].cache_id, node[y].border_id[i]) < bound)
@@ -842,18 +899,20 @@ void GPTree::push_borders_down_cache(int x, int y, int bound)
 		int i_ = begin[i];
 		int j_ = 0;
 		int tocompare = 0;
+		int tocompare2 = 0;
 		int dist2i = (*dist2)[i_];
 		int* disti = dist[i_];
+		int dist2i_2ndary = (*dist2_2ndary)[i_];
+		int* disti_2ndary = dist_2ndary[i_];
 		for (int j = 0; j < tot1; j++)
 		{
 			j_ = end[j];
 			tocompare = dist2i + disti[j_];
-			if ((*dist2)[j_] > tocompare)
+			tocompare2 = dist2i_2ndary + disti_2ndary[j_];
+			if ((*dist2)[j_] > tocompare) {
 				(*dist2)[j_] = tocompare;
-			/*
-			if ((*dist2)[end[j]]>(*dist2)[i_] + dist[i_][end[j]])
-				(*dist2)[end[j]] = (*dist2)[i_] + dist[i_][end[j]];
-			*/
+				(*dist2_2ndary)[j_] = tocompare2;
+			}
 		}
 	}
 	delete[] begin;
@@ -894,24 +953,28 @@ void GPTree::push_borders_brother_cache(int x, int y, int bound)//Cache the shor
 
 	}
 	for (int i = 0; i < node[y].cache_dist.size(); i++)node[y].cache_dist[i] = INF;
+	for (int i = 0; i < node[y].cache_dist2.size(); i++)node[y].cache_dist2[i] = INF;
 
 	vector<int>& idnow1 = id_now[1];
 	vector<int>& idlca1 = id_LCA[1];
-	int to_use = INF;
 	for (int i = 0; i < id_LCA[0].size(); i++) {
 		int xdist = node[x].cache_dist[id_now[0][i]];
 		int* thisA = node[LCA].dist.a[id_LCA[0][i]];
+		int xdist2 = node[x].cache_dist2[id_now[0][i]];
+		int* thisA2 = node[LCA].dist2.a[id_LCA[0][i]];
 		for (int j = 0; j < id_LCA[1].size(); j++)
 		{
 			int k = xdist + thisA[idlca1[j]];
+			int k2 = xdist2 + thisA2[idlca1[j]];
 			if (k < node[y].cache_dist[idnow1[j]]) {
 				node[y].cache_dist[idnow1[j]] = k;
-				to_use = k;
+				node[y].cache_dist2[idnow1[j]] = k2;
 			}
 		}
 	}
 
 	int** dist = node[y].dist.a;
+	int** dist_2ndary = node[y].dist2.a;
 	//vector<int>begin,end;//已算出的序列编号,未算出的序列编号
 	int* begin, * end;
 	begin = new int[node[y].borders.size()];
@@ -931,14 +994,21 @@ void GPTree::push_borders_brother_cache(int x, int y, int bound)//Cache the shor
 		int i_ = begin[i];
 		int j_ = 0;
 		int tocompare = 0;
+		int tocompare2 = 0;
 		int dist2i = node[y].cache_dist[i_];
 		int* disti = dist[i_];
+		int dist2i_2ndary = node[y].cache_dist2[i_];
+		int* disti_2ndary = dist_2ndary[i_];
 		for (int j = 0; j < tot1; j++)
 		{
 			j_ = end[j];
 			tocompare = dist2i + disti[j_];
-			if (node[y].cache_dist[j_] > tocompare)
+			tocompare2 = dist2i_2ndary + disti_2ndary[j_];
+			if (node[y].cache_dist[j_] > tocompare) {
 				node[y].cache_dist[j_] = tocompare;
+				node[y].cache_dist2[j_] = tocompare2;
+
+			}
 		}
 	}
 
@@ -951,23 +1021,26 @@ void GPTree::push_borders_brother_cache(int x, int y, int bound)//Cache the shor
 }
 
 //Return the shortest path length of S-T, and store the scheme of nodes passing along the way into the order array
-const int GPTree::find_path(const int S, const int T, vector<int>& order)
+std::pair<int, int> GPTree::find_path(const int S, const int T, vector<int>& order)
 {
 	order.clear();
 	if (S == T)
 	{
 		order.push_back(S);
 		order.push_back(T);
-		return 0;
+		return std::pair<int, int>{0, 0};
 	}
 
-	int i, j, k, p;
+	int i, j, k, k2, p;
 
 	int LCA, x = id_in_node[S], y = id_in_node[T];
 	LCA = find_LCA(x, y);
-	vector<int>dist[2], dist_;
+	vector<int>dist[2], dist_, dist2[2],dist2_;
 	dist[0].push_back(0);
 	dist[1].push_back(0);
+	dist2[0].push_back(0);
+	dist2[1].push_back(0);
+
 
 	//Naive G-Tree calculation
 	for (int t = 0; t < 2; t++)
@@ -976,7 +1049,7 @@ const int GPTree::find_path(const int S, const int T, vector<int>& order)
 		else p = y;
 		while (node[p].father != LCA)
 		{
-			push_borders_up_path(p, dist[t]);
+			push_borders_up_path(p, dist[t], dist2[t]);
 			p = node[p].father;
 		}
 		if (t == 0)x = p;
@@ -993,20 +1066,27 @@ const int GPTree::find_path(const int S, const int T, vector<int>& order)
 			{
 				id[t].push_back(node[p].border_in_father[i]);
 				dist[t][j] = dist[t][i];
+				dist2[t][j] = dist2[t][i];
 				j++;
 			}
-		while (dist[t].size() > id[t].size()) { dist[t].pop_back(); }
+		while (dist[t].size() > id[t].size()) { 
+			dist[t].pop_back(); 
+			dist2[t].pop_back();
+		}
 	}
 	//Final match
 	int MIN = INF;
+	int min2 = INF;
 	int S_ = -1, T_ = -1;// The number of the optimal path connected by borders in LCA
 	for (i = 0; i < (int)dist[0].size(); i++)
 		for (j = 0; j < (int)dist[1].size(); j++)
 		{
 			k = dist[0][i] + dist[1][j] + node[LCA].dist.a[id[0][i]][id[1][j]];
+			k2 = dist2[0][i] + dist2[1][j] + node[LCA].dist2.a[id[0][i]][id[1][j]];
 			if (k < MIN)
 			{
 				MIN = k;
+				min2 = k2;
 				S_ = id[0][i];
 				T_ = id[1][j];
 			}
@@ -1041,28 +1121,31 @@ const int GPTree::find_path(const int S, const int T, vector<int>& order)
 			}
 		}
 	}
-	return MIN;
+	return std::pair<int, int>{ MIN,min2 };
 }
 
 
 //Return the shortest path length of S-T, and store the scheme of nodes passing along the way into the order array
-const int GPTree::find_path_simple(const int S, const int T, vector<int>& order)
+std::pair<int, int> GPTree::find_path_simple(const int S, const int T, vector<int>& order)
 {
 	order.clear();
 	if (S == T)
 	{
 		order.push_back(S);
 		order.push_back(T);
-		return 0;
+		return std::pair<int, int>{0,0};
 	}
 
-	int i, j, k, p;
+	int i, j, k, k2, p;
 
 	int LCA, x = id_in_node[S], y = id_in_node[T];
 	LCA = find_LCA(x, y);
-	vector<int>dist[2], dist_;
+	vector<int>dist[2], dist_, dist2[2],dist2_;
 	dist[0].push_back(0);
 	dist[1].push_back(0);
+	dist2[0].push_back(0);
+	dist2[1].push_back(0);
+
 
 	//Naive G-Tree calculation
 	for (int t = 0; t < 2; t++)
@@ -1087,20 +1170,27 @@ const int GPTree::find_path_simple(const int S, const int T, vector<int>& order)
 			{
 				id[t].push_back(node[p].border_in_father[i]);
 				dist[t][j] = dist[t][i];
+				dist2[t][j] = dist2[t][i];
 				j++;
 			}
-		while (dist[t].size() > id[t].size()) { dist[t].pop_back(); }
+		while (dist[t].size() > id[t].size()) { 
+			dist[t].pop_back(); 
+			dist2[t].pop_back();
+		}
 	}
 	//Final match
 	int MIN = INF;
+	int min2 = INF;
 	int S_ = -1, T_ = -1;// The number of the optimal path connected by borders in LCA
 	for (i = 0; i < (int)dist[0].size(); i++)
 		for (j = 0; j < (int)dist[1].size(); j++)
 		{
 			k = dist[0][i] + dist[1][j] + node[LCA].dist.a[id[0][i]][id[1][j]];
+			k2 = dist2[0][i] + dist2[1][j] + node[LCA].dist2.a[id[0][i]][id[1][j]];
 			if (k < MIN)
 			{
 				MIN = k;
+				min2 = k2;
 				S_ = id[0][i];
 				T_ = id[1][j];
 			}
@@ -1109,7 +1199,7 @@ const int GPTree::find_path_simple(const int S, const int T, vector<int>& order)
 	{
 		find_path_border(LCA, S_, T_, order, 0);
 	}
-	return MIN;
+	return std::pair<int,int>{MIN,min2};
 }
 
 
@@ -1154,28 +1244,31 @@ const void GPTree::find_path_border(int x, int S, int T, vector<int>& v, int rev
 // (>=0 Indicates the node, 
 // <0 indicates that it is passed on to the node's son, 
 // -INF indicates no predecessor)
-void GPTree::push_borders_up_path(int x, vector<int>& dist1)
+void GPTree::push_borders_up_path(int x, vector<int>& dist1, vector<int>& dist2)
 {
 	if (node[x].father == 0)return;
 	int y = node[x].father;
-	vector<int>dist3(node[y].borders.size(), INF);
+	vector<int>dist1_replacement(node[y].borders.size(), INF);
+	vector<int>dist2_replacement(node[y].borders.size(), INF);
 	vector<int>* order = &node[y].path_record;
 	(*order).clear();
 	for (int i = 0; i < node[y].borders.size(); i++)(*order).push_back(-INF);
 	for (int i = 0; i < node[x].borders.size(); i++)
 		if (node[x].border_in_father[i] != -1)
 		{
-			dist3[node[x].border_in_father[i]] = dist1[i];
+			dist1_replacement[node[x].border_in_father[i]] = dist1[i];
+			dist2_replacement[node[x].border_in_father[i]] = dist2[i];
 			(*order)[node[x].border_in_father[i]] = -x;
 		}
 	int** dist = node[y].dist.a;
+	int** dist_2ndary = node[y].dist2.a;
 	int* begin, * end; //Calculated serial number, uncalculated serial number
 	begin = new int[node[x].borders.size()];
 	end = new int[node[y].borders.size()];
 	int tot0 = 0, tot1 = 0;
-	for (int i = 0; i < dist3.size(); i++)
+	for (int i = 0; i < dist1_replacement.size(); i++)
 	{
-		if (dist3[i] < INF)begin[tot0++] = i;
+		if (dist1_replacement[i] < INF)begin[tot0++] = i;
 		else if (node[y].border_in_father[i] != -1)end[tot1++] = i;
 	}
 	for (int i = 0; i < tot0; i++)
@@ -1183,14 +1276,16 @@ void GPTree::push_borders_up_path(int x, vector<int>& dist1)
 		int i_ = begin[i];
 		for (int j = 0; j < tot1; j++)
 		{
-			if (dist3[end[j]] > dist3[i_] + dist[i_][end[j]])
+			if (dist1_replacement[end[j]] > dist1_replacement[i_] + dist[i_][end[j]])
 			{
-				dist3[end[j]] = dist3[i_] + dist[i_][end[j]];
+				dist1_replacement[end[j]] = dist1_replacement[i_] + dist[i_][end[j]];
+				dist2_replacement[end[j]] = dist2_replacement[i_] + dist_2ndary[i_][end[j]];
 				(*order)[end[j]] = i_;
 			}
 		}
 	}
-	dist1 = dist3;
+	dist1 = dist1_replacement;
+	dist2 = dist2_replacement;
 	delete[] begin;
 	delete[] end;
 }

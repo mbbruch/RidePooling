@@ -9,13 +9,13 @@ struct Graph// Undirected graph structure
 	int n, m;//n points, m edges, points from 0 to n-1
 	int tot;
 	vector<int> id; //id[i] The real number of the i point in the sub-graph in the original graph
-	vector<int>head, list, next, cost;//Adjacency list
+	vector<int>head, list, next, cost, cost2;//Adjacency list
 	Graph();
 	~Graph();
 	void save();
 	void load();
-	void add_D(int a, int b, int c);
-	void add(int a, int b, int c);
+	void add_D(int a, int b, float c, float d);
+	void add(int a, int b, float c, float d);
 	void init(int N, int M, int t = 1);
 	void clear();
 	void draw();

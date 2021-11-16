@@ -3,9 +3,9 @@
 #include "globals.h"
 
 
-struct Matrix//矩阵
+struct Matrix
 {
-	int n;//矩阵长宽
+	int n;//Matrix length and width
 	int** a;
 
 	Matrix() :n(0), a(NULL) {}
@@ -58,16 +58,19 @@ struct Matrix//矩阵
 		delete[] a;
 	}
 
-	void floyd()//对矩阵a进行floyd
+	void floyd(Matrix& b)
 	{
 		int i, j, k;
 		for (k = 0; k < n; k++)
 			for (i = 0; i < n; i++)
 				for (j = 0; j < n; j++)
-					if (a[i][j] > a[i][k] + a[k][j])a[i][j] = a[i][k] + a[k][j];
+					if (a[i][j] > a[i][k] + a[k][j]) {
+						a[i][j] = a[i][k] + a[k][j];
+						b.a[i][j] = b.a[i][k] + b.a[k][j];
+					}
 	}
 
-	void floyd(Matrix& order)//对矩阵a进行floyd,将方案记录到order中
+	void floyd(Matrix& order, Matrix& b)//Floyd the matrix a and record the scheme in order
 	{
 		int i, j, k;
 		for (k = 0; k < n; k++)
@@ -76,6 +79,7 @@ struct Matrix//矩阵
 					if (a[i][j] > a[i][k] + a[k][j])
 					{
 						a[i][j] = a[i][k] + a[k][j];
+						b.a[i][j] = b.a[i][k] + b.a[k][j];
 						order.a[i][j] = k;
 					}
 	}

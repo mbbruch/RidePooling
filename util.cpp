@@ -146,6 +146,28 @@ void load_map_intpair_int(map_of_pairs& h)
     h = tempMap;
 }
 
+void save_map_intpair_intpair(pairs_to_pairs& h, FILE* out)
+{
+    fprintf(out, "%zd\n", h.size());
+    for (auto iter = h.begin(); iter != h.end(); iter++)
+        fprintf(out, "%d %d %d %d\n", iter->first.first, iter->first.second, iter->second.first, iter->second.second);
+}
+void load_map_intpair_intpair(pairs_to_pairs& h)
+{
+    int n, i, j, k, l;
+    scanf("%d", &n);
+    vector<pair<pair<int, int>, pair<int,int>>> temp;
+    temp.reserve(n);
+    for (i = 0; i < n; i++)
+    {
+        scanf("%d%d%d", &i, &j, &k, &l);
+        temp.push_back(make_pair(pair<int, int>{i, j}, pair<int, int>{k, l}));
+        //h[make_pair(i, j)] = k;
+    }
+    pairs_to_pairs tempMap((temp.begin()), temp.end());
+    h = tempMap;
+}
+
 FILE* get_requests_file(const char* file) {
     FILE *in = NULL;
     in = fopen(file, "r");
@@ -191,7 +213,7 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
         if (num != EOF) {
             if (start != end) {
                 Request r(start, end, reqTime);
-                r.shortestDist = treeDist.get_dist(start, end);
+                r.shortestDist = -1; //TODO add this as something read in 
                 r.expectedOffTime = reqTime + ceil((double(r.shortestDist)) / velocity);
                 requests.push_back(r);
                 raw_dist += r.shortestDist;

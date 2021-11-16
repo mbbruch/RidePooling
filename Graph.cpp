@@ -2,6 +2,7 @@
 #include<cstring>
 #include<algorithm>
 #include<metis.h>
+#include<math.h>
 #include "Graph.h"
 #include "util.h"
 #include "globals.h"
@@ -28,6 +29,7 @@ void Graph::save()//保存结构信息(stdout输出)
 	save_vector(list);
 	save_vector(next);
 	save_vector(cost);
+	save_vector(cost2);
 }
 
 void Graph::load()//读取结构信息(stdout输出)
@@ -38,26 +40,29 @@ void Graph::load()//读取结构信息(stdout输出)
 	load_vector(list);
 	load_vector(next);
 	load_vector(cost);
+	load_vector(cost2);
 }
 
-void Graph::add_D(int a, int b, int c)//Add a directed edge with a->b weight c
+void Graph::add_D(int a, int b, float c, float d)//Add a directed edge with a->b weight c
 {
 	//tot: counter initialized to 1
 	tot++;
 	//list: one entry per edge
 	list[tot] = b;
 	//cost: one entry per edge
-	cost[tot] = c;
+	cost[tot] = round(c*10);
+	//cost2: one entry per edge
+	cost2[tot] = round(d);
 	//next: one entry per edge
 	next[tot] = head[a];
 	//head: one entry per node. Indexed by the node # at start of edge, it 
 	head[a] = tot;
 }
 
-void Graph::add(int a, int b, int c)//Add an undirected edge with a<->b weight c
+void Graph::add(int a, int b, float c, float d)//Add an undirected edge with a<->b weight c
 {
-	add_D(a, b, c);
-	add_D(b, a, c);
+	add_D(a, b, c, d);
+	add_D(b, a, c, d);
 }
 
 void Graph::init(int N, int M, int t)
@@ -70,6 +75,7 @@ void Graph::init(int N, int M, int t)
 	list = vector<int>(M * 2 + 2);
 	next = vector<int>(M * 2 + 2);
 	cost = vector<int>(M * 2 + 2);
+	cost2 = vector<int>(M * 2 + 2);
 }
 
 void Graph::clear()
@@ -79,6 +85,7 @@ void Graph::clear()
 	list.clear();
 	next.clear();
 	cost.clear();
+	cost2.clear();
 	id.clear();
 }
 
@@ -218,7 +225,7 @@ vector<int> Graph::Split(Graph* G[], int nparts)//将子图一分为二返回col
 			if (color[i] == t)
 				for (j = head[i]; j; j = next[j])
 					if (color[list[j]] == color[i])
-						(*G[t]).add_D(new_id[i], new_id[list[j]], cost[j]);
+						(*G[t]).add_D(new_id[i], new_id[list[j]], cost[j], cost2[j]);
 	}
 	for (i = 0; i < tot.size(); i++)tot[i] = 0;
 	for (i = 0; i < n; i++)

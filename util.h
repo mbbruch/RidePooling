@@ -61,3 +61,5 @@ void save_map_int_int(map<int, int>& h);
 void load_map_int_int(map<int, int>& h);
 void save_map_intpair_int(map_of_pairs& h, FILE* out);
 void load_map_intpair_int(map_of_pairs& h);
+void save_map_intpair_intpair(pairs_to_pairs& h, FILE* out);
+void load_map_intpair_intpair(pairs_to_pairs& h);
