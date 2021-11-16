@@ -158,7 +158,7 @@ void GPTree::initialize(bool load_cache) {
 		//TIME_TICK_START
 		init_rand();
 		read();
-		Additional_Memory = 16 * G.n*log2(G.n);
+		Additional_Memory = 2 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("load from cache")
@@ -167,7 +167,7 @@ void GPTree::initialize(bool load_cache) {
 		//TIME_TICK_START
 		init_rand();
 		read();
-		Additional_Memory = 16 * G.n*log2(G.n);
+		Additional_Memory = 2 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		build();
 		//TIME_TICK_END
@@ -347,7 +347,6 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 	}
 	else if (node[x].G.n<Naive_Split_Limit)node[x].init(node[x].n);
 	else node[x].init(Partition_Part);
-	if (node[x].n>50)printf("x=%d deep=%d n=%d ", x, node[x].deep, node[x].G.n);
 	if (node[x].n>f)
 	{
 		//Child node label
@@ -365,7 +364,6 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 		node[x].color = node[x].G.Split(graph, node[x].part);
 		delete[] graph;
 		make_border(x, node[x].color);
-		if (node[x].n>50)printf("border=%zd\n", node[x].borders.size());
 		//Transfer border to child node
 		for (auto iter = node[x].borders.begin(); iter != node[x].borders.end(); iter++)
 		{
@@ -394,12 +392,6 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 	node[x].order.cover(-INF);
 	if (x == 1)//x build for root dist
 	{
-		for (int i = 1; i<min(1000, node_tot - 1); i++)
-			if (node[i].n>50)
-			{
-				printf("x=%d deep=%d n=%d ", i, node[i].deep, node[i].G.n);
-				printf("border=%zd real_border=%d\n", node[i].borders.size(), real_border_number(i));
-			}
 		printf("begin_build_border_in_father_son\n");
 		build_border_in_father_son();
 		printf("begin_build_dist\n");

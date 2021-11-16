@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
     vector<int> order1, order2;
     std::pair<int, int> result1, result2;
 
-    result1 = treeCost.find_path(1 - 1, 5 - 1, order1);
+    result1 = treeCost.find_path(455 - 1, 101 - 1, order1);
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
@@ -81,8 +81,9 @@ int main(int argc, char* argv[]) {
     //}
     int correct = 0;
     int incorrect = 0;
-    out = treeCost.G.find_path(101 - 1, 455 - 1);
-    result1 = treeCost.get_dist(101 - 1, 455 - 1);
+ //   out = treeCost.G.find_path(101 - 1, 455 - 1);
+//    result1 = treeCost.get_dist(101 - 1, 455 - 1);
+    result1 = treeCost.find_path(455 - 1, 101 - 1, out);
 
  //   #pragma omp parallel for default(none) private(i,j) shared(treeCost)
     for (i = 1; i < 500; i++) {
