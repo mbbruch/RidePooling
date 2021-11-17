@@ -56,7 +56,9 @@ int main(int argc, char* argv[]) {
     treeCost.initialize(false);
     vector<int> order1, order2;
     std::pair<int, int> result1, result2;
-
+    treeCost.node[7086].dist.write();
+    order1 = treeCost.G.find_path(455 - 1, 101 - 1);
+    result1 = treeCost.get_dist(455, 101);
     result1 = treeCost.find_path(455 - 1, 101 - 1, order1);
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
@@ -87,15 +89,28 @@ int main(int argc, char* argv[]) {
 
  //   #pragma omp parallel for default(none) private(i,j) shared(treeCost)
     for (i = 1; i < 500; i++) {
+        std::vector<int> out;
+        treeCost.G.dijkstra(i - 1, out);
         for (j = 1; j < 500; j++) {
             result1 = treeCost.find_path(i - 1, j - 1, order1);
-            result2 = treeCost.get_dist(i, j);
-            if (result1 != result2) {
+            int cost1 = result1.first;
+            //result2 = treeCost.get_dist(i, j);
+            int cost2 = out[j-1];
+            //order2 = treeCost.G.find_path(i - 1, j - 1);
+            //for (int k = 1; k < order2.size(); k++) {
+            //    cost2 += treeCost.get_dist(order2[k-1]+1, order2[k]+1).first;
+            //}
+            if (cost1 != cost2) {
+                incorrect++;
+            }
+ /*           if (result1.first != result2.first) {
                 incorrect++;
                 if (result1.first < result2.first) {
                     bool suboptimal = false;
                 }
-            }
+                else if(result1.first > result2.first){
+                    bool suboptimal = true;
+                */
             else {
                 correct++;
             }

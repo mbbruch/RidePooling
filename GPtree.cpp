@@ -435,7 +435,7 @@ void GPTree::build_dist_part1(int x)
 	{
 		//Create edges between x sub-nodes
 		node[x].make_border_edge();
-		//Calculate the internal real dist matrix
+		//Calculate the internal real dist matrix		
 		node[x].dist.floyd(node[x].order, node[x].dist2);
 	}
 	else;//leaf
@@ -496,7 +496,7 @@ void GPTree::build_dist_part2(int x)
 					if ((*p)>node[x].dist.a[i][j])
 					{
 						(*p) = node[x].dist.a[i][j];
-						(*p) = node[x].dist2.a[i][j];
+						(*p2) = node[x].dist2.a[i][j];
 						node[y].order.a[id_[i]][id_[j]] = -2;
 					}
 				}

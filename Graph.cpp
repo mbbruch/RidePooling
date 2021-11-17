@@ -50,7 +50,7 @@ void Graph::add_D(int a, int b, float c, float d)//Add a directed edge with a->b
 	//list: one entry per edge
 	list[tot] = b;
 	//cost: one entry per edge
-	cost[tot] = round(c);
+	cost[tot] = (int)c; //round(c);
 	//cost2: one entry per edge
 	cost2[tot] = round(d);
 	//next: one entry per edge
