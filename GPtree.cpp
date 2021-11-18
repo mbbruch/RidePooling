@@ -630,7 +630,7 @@ std::pair<int, int> GPTree::search(int S, int T)//Query the shortest path length
 			}
 		}
 	}
-	return std::pair<int, int>{MIN, min2};
+	return std::pair<int, int>{round(MIN/cost_scale_factor), min2};
 }
 //Record the shortest path length from S to the boundary point of node x in dist1, 
 //calculate the distance from S to the real border of x.father,
@@ -771,7 +771,7 @@ for (int i = node_path[1].size() - 1; i > 0; i--)
 }
 
 //Final answer
-return std::pair<int, int>{node[id_in_node[T]].cache_dist[0], node[id_in_node[T]].cache_dist2[0]};
+return std::pair<int, int>{ round(node[id_in_node[T]].cache_dist[0] / cost_scale_factor), node[id_in_node[T]].cache_dist2[0]};
 }
 
 //Cache the shortest path length from S to the boundary point of node x in x.cache_dist, 
@@ -1113,7 +1113,7 @@ std::pair<int, int> GPTree::find_path(const int S, const int T, vector<int>& ord
 			}
 		}
 	}
-	return std::pair<int, int>{ MIN,min2 };
+	return std::pair<int, int>{ round(MIN/cost_scale_factor),min2 };
 }
 
 
@@ -1191,7 +1191,7 @@ std::pair<int, int> GPTree::find_path_simple(const int S, const int T, vector<in
 	{
 		find_path_border(LCA, S_, T_, order, 0);
 	}
-	return std::pair<int,int>{MIN,min2};
+	return std::pair<int,int>{ round(MIN / cost_scale_factor),min2};
 }
 
 

@@ -205,15 +205,15 @@ void setup_vehicles(int nCars, vector<Vehicle>& vehicles) {
 bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
     
     int num = 0;
-    int start, end, reqTime;
+    int start, end, reqTime, dist;
     these_reqs = 0;
     these_served_reqs = 0;
     while (num != EOF) {
-        num = fscanf(in, "%d,%d,%d\n", &reqTime, &start, &end);
+        num = fscanf(in, "%d,%d,%d, %d\n", &reqTime, &start, &end, &dist);
         if (num != EOF) {
             if (start != end) {
                 Request r(start, end, reqTime);
-                r.shortestDist = -1; //TODO add this as something read in 
+                r.shortestDist = dist;
                 r.expectedOffTime = reqTime + ceil((double(r.shortestDist)) / velocity);
                 requests.push_back(r);
                 raw_dist += r.shortestDist;

@@ -37,7 +37,7 @@ static const char DistMap_File[] = "/ocean/projects/eng200002p/mbruchon/Pooling/
 static const char ST_File[] = "dist_map_chicago.data";
 static const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
 static const int Naive_Split_Limit = 33;//The sub-graph size is smaller than this value
-static const int INF = 0x3fffffff;
+static const int INF = std::numeric_limits<int>::max();// 0x3fffffff;
 
 extern const int time_step;
 extern const int max_node;
@@ -48,6 +48,8 @@ extern const int velocity; // dm/s
 extern const int penalty;
 extern const int max_v_per_req;
 extern const int min_req_per_v;
+
+extern const int cost_scale_factor;
 
 extern const double pickupPenalty;
 extern const double delayPenalty;

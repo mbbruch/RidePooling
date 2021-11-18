@@ -11,6 +11,8 @@
 #include <sstream>
 #include <omp.h>
 #include <cstring>
+#include <fstream>
+#include <iomanip>
 #include "gurobi_c++.h"
 
 #include "globals.h"
@@ -22,7 +24,7 @@ using namespace std;
 
 
 int main(int argc, char* argv[]) {
-    std::string reqFile = "C:/Code_Projects/RidePooling/In/requests.csv";//argv[1];
+    std::string reqFile = "C:/Code_Projects/RidePooling/In/requests_with_dist.csv";//argv[1];
     std::string vehFile = "C:/Code_Projects/RidePooling/In/vehicles.csv";//argv[2];
     std::string filenameTime = GetCurrentTimeForFileName();
     outDir = baseOutDir + filenameTime + "/";
@@ -54,94 +56,34 @@ int main(int argc, char* argv[]) {
     print_line(outDir, logFile, "Start initializing");
     treeCost.EdgeWeightsFile = Cost_File;
     treeCost.initialize(false);
-    vector<int> order1, order2;
-    std::pair<int, int> result1, result2;
-    treeCost.node[7086].dist.write();
-    order1 = treeCost.G.find_path(455 - 1, 101 - 1);
-    result1 = treeCost.get_dist(455, 101);
-    result1 = treeCost.find_path(455 - 1, 101 - 1, order1);
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
     read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir, logFile, "Vehicles read in");
 
-    vector<int> results1;
-    results1.reserve(500 * 500);
-    int i = 0;
-    int j = 0;
-    std::vector<int> out;
-    treeCost.G.dijkstra(101 - 1, out);
- //   #pragma omp parallel for default(none) private(i) shared(treeCost)
- //   for (i = 1; i < 500; i++) {
-   //     out = treeCost.G.find_path(76 - 1, 143 - 1);
-    //}
-    int yes = 5;
-//#pragma omp parallel for default(none) private(i) shared(treeCost)
-//    for (i = 1; i < 500; i++) {
-  //      result1 = treeCost.find_path(76 - 1, 143 - 1, order1);
-    //}
-    int correct = 0;
-    int incorrect = 0;
- //   out = treeCost.G.find_path(101 - 1, 455 - 1);
-//    result1 = treeCost.get_dist(101 - 1, 455 - 1);
-    result1 = treeCost.find_path(455 - 1, 101 - 1, out);
-
- //   #pragma omp parallel for default(none) private(i,j) shared(treeCost)
-    for (i = 1; i < 500; i++) {
-        std::vector<int> out;
-        treeCost.G.dijkstra(i - 1, out);
-        for (j = 1; j < 500; j++) {
-            result1 = treeCost.find_path(i - 1, j - 1, order1);
-            int cost1 = result1.first;
-            //result2 = treeCost.get_dist(i, j);
-            int cost2 = out[j-1];
-            //order2 = treeCost.G.find_path(i - 1, j - 1);
-            //for (int k = 1; k < order2.size(); k++) {
-            //    cost2 += treeCost.get_dist(order2[k-1]+1, order2[k]+1).first;
-            //}
-            if (cost1 != cost2) {
-                incorrect++;
-            }
- /*           if (result1.first != result2.first) {
-                incorrect++;
-                if (result1.first < result2.first) {
-                    bool suboptimal = false;
-                }
-                else if(result1.first > result2.first){
-                    bool suboptimal = true;
-                */
-            else {
-                correct++;
-            }
-        }
-    }
-
-    int x = correct; int y = incorrect;
-    vector<int> results2;
-    results2.reserve(500 * 500);
-//#pragma omp parallel for default(none) private(i,j) shared(treeCost)
-    for (i = 1; i < 500; i++) {
-        for (j = 1; j < 500; j++) {
-        }
-    }
-
-    for (int i = 0; i < results1.size(); i++) {
-        if (results1[i] != results2[i]) {
-            int x = 5;
-        }
-}
     vector<Request> requests;
-    requests.reserve(100);
 
     bool hasMore = false;
     Request tail;
 
     vector<Request> unserved;
-
     FILE* in = get_requests_file(reqFile.c_str());
-    fclose(in);
-    in = get_requests_file(reqFile.c_str());
+/*
+    requests.clear();
+    int num = 0;
+    int start, end, reqTime;
+    std::ofstream ofs;
+    ofs.open("C:/Code_Projects/RidePooling/In/requests_with_dist.csv", std::ofstream::out | std::ofstream::app);
+    while (num != EOF) {
+        num = fscanf(in, "%d,%d,%d\n", &reqTime, &start, &end);
+        if (num != EOF) {
+            int dist = treeCost.get_dist(start, end).second;
+            ofs << string_format("%d,%d,%d,%d\n", reqTime, start, end, dist);
+        }
+    }
+    ofs.close();
+*/
 
     while (true) {
         auto beforeTime = std::chrono::system_clock::now();
@@ -214,7 +156,7 @@ int main(int argc, char* argv[]) {
         vector<int>().swap(vec2);
         set<pair<int, int>>().swap(ongoingLocs);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
-        print_line(outDir,logFile,string_format("Dist map set up time = %f", elapsed_seconds.count()));
+        print_line(outDir,logFile,string_format("Dist map set up time = %f", elapsed_seconds.count())); 
 
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests);

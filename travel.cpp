@@ -67,7 +67,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         /* Get the time from current location to node*/
         int interDist = 0;
         int newCost = INF;
-        std::pair<int,int> result = treeCost.get_dist(prevLoc - 1, node - 1);
+        std::pair<int,int> result = treeCost.get_dist(prevLoc, node);
         newCost = result.first;
         interDist += result.second;
         int newTime = nowTime + ceil((double(interDist)) / velocity*1.0);  //TODO PROBLEM: negative costs if the person gets picked up EARLY. they shouldn't be picked up early.
@@ -181,7 +181,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         int newPickups = 0;
         vehicle.check_passengers(newTime, node, exceeded, newDelays, newPickups,
             getOffsPsngr, schedule, occupancyChanges, decided);
-        newCost = newCost + newPickups* pickupPenalty + newDelays * delayPenalty;
+        newCost = newCost + newPickups * pickupPenalty + newDelays * delayPenalty;
         if (newCost >= ansCost) {
             exceeded = true;
         }
@@ -247,14 +247,24 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
 
     set<int> target; // Origin of all new reqs, plus destination of in-progress passengers
     map<int, set<int> > src_dst; // For all origins in reqs, a vector of attached destinations
+    bool five, thirtyone = false;
     // insert new requests: s->t into src_dst
     for (int i = 0; i < numReqs; i++) {
-        Request *req = reqs[i];
+        Request* req = reqs[i];
         src_dst[req->start].insert(req->end);
         target.insert(req->start);
+        if (req->unique == 4) {
+            five = true;
+        }
+        if (req->unique == 31){
+            thirtyone = true;
+        }
     }
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary
+    if (five && thirtyone && numReqs==2) {
+        int x = 5;
+    }
     vehicle.insert_targets(target);
 
     ansDelays = max_delay_sec * numReqs;
@@ -285,21 +295,53 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
             beginTime += ansOffset;
             vector<int> order;
             vector<pair<int, int> > finalPath;
+            vector<pair<int, int> > finalPath2;
+            vector<pair<int, int> > finalPath3;
             int prevNode = vehicle.get_location();
             for (int m = 0; m < ansPath.size(); m++) {
                 int passedDist = 0;
+                int passedDist2 = 0;
+                int passedDist3 = 0;
                 if (finalPath.size() > 0) {
                     beginTime = finalPath[finalPath.size() - 1].first;
                 }
                 int node = ansPath[m].second;
                 order.clear();
+                std::vector<int> order2;
+                std::pair<int, int> tcResult, tcResult2;
                 #pragma omp critical (findpath)
-                treeCost.find_path(prevNode - 1, node - 1, order);
+                tcResult = treeCost.find_path(prevNode - 1, node - 1, order);
+                order2 = treeCost.G.find_path(prevNode - 1, node - 1);
+                tcResult2 = treeCost.get_dist(prevNode, node);
                 order[0] += 1;
                 for (int i = 1; i < order.size(); i++) {
                     order[i] += 1;
-                    passedDist += treeCost.get_dist(order[i - 1], order[i], simplestCheck).second;
+                    std::vector<int> subpath;
+                    std::pair<int, int> temp = treeCost.get_dist(order[i - 1], order[i], simplestCheck);
+                    int newDist = temp.second;
+                    treeCost.find_path(order[i - 1]-1, order[i]-1, subpath);
+                    passedDist += newDist;
+                    std::vector<int> theseDist;
+                    if (five && thirtyone) {
+                        //treeCost.G.dijkstra(order[i - 1] - 1, theseDist);
+                        std::pair<int, int> temp2 = treeCost.find_path(order[i - 1] - 1, order[i] - 1, order2);
+                        int thisDist = temp2.second;//theseDist[order[i] - 1];
+                        passedDist3 += thisDist;
+                        if (thisDist != newDist) {
+                            int  x = 5;
+                        }
+                        finalPath3.push_back(make_pair(beginTime + ceil((double(passedDist3)) / velocity * 1.0), order[i]));
+                    }
                     finalPath.push_back(make_pair(beginTime + ceil((double(passedDist)) / velocity*1.0), order[i]));
+                }
+                order2[0] += 1;
+                for (int i = 1; i < order2.size(); i++) {
+                    order2[i] += 1;
+                    passedDist2 += treeCost.get_dist(order2[i - 1], order2[i], simplestCheck).second;
+                    finalPath2.push_back(make_pair(beginTime + ceil((double(passedDist2)) / velocity * 1.0), order2[i]));
+                }
+                if (passedDist != tcResult.second) {
+                    int x = 5;
                 }
                 if (finalPath.size() > 0) {
                     int diff = finalPath[finalPath.size() - 1].first - ansPath[m].first;

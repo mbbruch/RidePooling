@@ -15,7 +15,7 @@ double travel_max;
 int max_vehicle;
 int dist_map_size;
 
-std::string baseOutDir = "C:/Code_Projects/RidePoolingWorking/Out/";
+std::string baseOutDir = "C:/Code_Projects/RidePooling/Out/";
 std::string outDir;
 std::string logFile;
 
@@ -28,6 +28,7 @@ extern const int velocity = 84; // dm/s or 19 mph
 extern const int penalty = max_delay_sec*1000;
 extern const int max_v_per_req = 20;
 extern const int min_req_per_v = 20;
+extern const int cost_scale_factor = 100;
 
 extern const double pickupPenalty = 123.6025; //cents per pickup
 extern const double delayPenalty = 33.70264/60; //cents per second
