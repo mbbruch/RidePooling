@@ -217,9 +217,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
     }
     thisveh.close();
     for (int i = 0; i < this->passengers.size(); i++) {
-        if (this->passengers[i].unique == 4) {
-            int x = 5;
-        }
         int origin = this->passengers[i].start;
         int originTime = this->passengers[i].scheduledOnTime;
         int schedStartTime = this->scheduledPath.front().first;

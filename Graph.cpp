@@ -50,7 +50,7 @@ void Graph::add_D(int a, int b, float c, float d)//Add a directed edge with a->b
 	//list: one entry per edge
 	list[tot] = b;
 	//cost: one entry per edge
-	cost[tot] = round(c* cost_scale_factor);
+	cost[tot] = round(c);
 	//cost2: one entry per edge
 	cost2[tot] = round(d);
 	//next: one entry per edge
@@ -61,8 +61,8 @@ void Graph::add_D(int a, int b, float c, float d)//Add a directed edge with a->b
 
 void Graph::add(int a, int b, float c, float d)//Add an undirected edge with a<->b weight c
 {
-	add_D(a, b, c, d);
-	add_D(b, a, c, d);
+	add_D(a, b, c * cost_scale_factor, d);
+	add_D(b, a, c*cost_scale_factor, d);
 }
 
 void Graph::init(int N, int M, int t)

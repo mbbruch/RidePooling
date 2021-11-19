@@ -907,16 +907,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
                 }
                 // update passengers of vehicle
                 TravelHelper th;
-                if (vehicle.getAvailableSince() == -9999 && now_time > 900) {
-                    int x = 5;
-                }
                 th.travel(vehicle, reqs, tripSize, true);
-                //write out vehicle.scheduledPath, vehicle ID is vIds[vIdx]
-                //for each element in reqs, write out vehicle ID, unique, pretty much everything PLUS travel.
-//                write_path(vehicle);
-//                for (int i = 0; i < tripSize; i++) {
-//                    write_request(reqs[i]);
-//                }
                 break;
             }
         }

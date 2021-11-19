@@ -62,29 +62,11 @@ int main(int argc, char* argv[]) {
     read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir, logFile, "Vehicles read in");
 
-    vector<Request> requests;
-
     bool hasMore = false;
     Request tail;
-
+    vector<Request> requests;
     vector<Request> unserved;
     FILE* in = get_requests_file(reqFile.c_str());
-/*
-    requests.clear();
-    int num = 0;
-    int start, end, reqTime;
-    std::ofstream ofs;
-    ofs.open("C:/Code_Projects/RidePooling/In/requests_with_dist.csv", std::ofstream::out | std::ofstream::app);
-    while (num != EOF) {
-        num = fscanf(in, "%d,%d,%d\n", &reqTime, &start, &end);
-        if (num != EOF) {
-            int dist = treeCost.get_dist(start, end).second;
-            ofs << string_format("%d,%d,%d,%d\n", reqTime, start, end, dist);
-        }
-    }
-    ofs.close();
-*/
-
     while (true) {
         auto beforeTime = std::chrono::system_clock::now();
         utilization.clear();
