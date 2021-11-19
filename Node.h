@@ -19,7 +19,7 @@ struct Node
 	vector<int>border_in_father, border_in_son, border_id, border_id_innode;//borders father and son, borders number in the list,
 	//border number in original graph,border number in the node
 	vector<int>path_record;//path query helper array, meaningless
-	int cache_id, cache_bound;//current cache saved starting point #，current cache saved updated cacheof bound(<bound of begin updated end)
+	int cache_id, cache_bound;//current cache saved starting point #,current cache saved updated cacheof bound(<bound of begin updated end)
 	vector<int>cache_dist, cache_dist2;//Current cache_dist saves the distance from the node cache_id in Figure G to each border, 
 	//and only the part of the value less than or equal to cache_bound is correct
 	vector<int>border_son_id;//current border the number of the son node where

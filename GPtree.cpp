@@ -113,8 +113,9 @@ void GPTree::read()
 			coordinate.push_back(coor(d1, d2));
 		}
 		fclose(in);
-		printf("read over\n");
 	}
+	cout << "read over" << endl;
+	printf("read over\n");
 }
 void GPTree::save()
 {
@@ -130,8 +131,7 @@ void GPTree::save()
 		printf("\n");
 		node[i].save();
 	}
-	//freopen("/dev/tty", "w", stdout);
-	freopen("CONOUT$", "w", stdout);
+	freopen(stdOutput.c_str(), "w", stdout);
 	printf("save_over\n");
 }
 void GPTree::load()
@@ -149,8 +149,7 @@ void GPTree::load()
 		node[i].load();
 	}
 	fclose(in);
-//	freopen("/dev/tty", "r", stdin);
-	freopen("CONOUT$", "r", stdin);
+	freopen(stdOutput.c_str(), "r", stdin);
 }
 
 void GPTree::initialize(bool load_cache) {
@@ -172,7 +171,7 @@ void GPTree::initialize(bool load_cache) {
 		build();
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("build from scratch")
-		save();
+		//save();
 	}
 
 }
@@ -285,7 +284,6 @@ void GPTree::write()
 	{
 		printf("node:%d\n", i);
 		node[i].write();
-		cout << endl;
 	}
 }
 
@@ -392,11 +390,8 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 	node[x].order.cover(-INF);
 	if (x == 1)//x build for root dist
 	{
-		printf("begin_build_border_in_father_son\n");
 		build_border_in_father_son();
-		printf("begin_build_dist\n");
 		build_dist_part1(root);
-		printf("begin_build_dist_part2\n");
 		build_dist_part2(root);
 		//Calculate the leaf number where each node is located
 		id_in_node.clear();
@@ -423,7 +418,6 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 			for (int i = 0; i<G.n; i++)car_in_node.push_back(empty_vector);
 		}
 	}
-
 }
 
 //Bottom-up merge subgraph interior dist

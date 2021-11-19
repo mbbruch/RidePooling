@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <random>
 #include <map>
+#include <cmath>
 #include <chrono>
 #include "util.h"
 #include <unordered_set>
@@ -209,7 +210,7 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
     these_reqs = 0;
     these_served_reqs = 0;
     while (num != EOF) {
-        num = fscanf(in, "%d,%d,%d, %d\n", &reqTime, &start, &end, &dist);
+        num = fscanf(in, "%d,%d,%d,%d\n", &reqTime, &start, &end, &dist);
         if (num != EOF) {
             if (start != end) {
                 Request r(start, end, reqTime);

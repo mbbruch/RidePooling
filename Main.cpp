@@ -54,6 +54,27 @@ int main(int argc, char* argv[]) {
     print_line(outDir, logFile, "Start initializing");
     treeCost.EdgeWeightsFile = costFile;
     treeCost.initialize(false);
+	cout << " tree initialized" << endl;
+
+/*
+    FILE* in = get_requests_file(reqFile.c_str());
+	int start, end, reqTime, dist, dist_new;
+    these_reqs = 0;
+    these_served_reqs = 0;
+    int num = 0;
+    std::ofstream ofs;
+    ofs.open(baseInDir + "requests_with_dist.csv", std::ofstream::out | std::ofstream::app);
+    while (num != EOF) {
+        num = fscanf(in, "%d,%d,%d\n", &reqTime, &start, &end);
+        if (num != EOF) {
+            if (start != end) {
+                dist_new = treeCost.get_dist(start, end).first;
+                ofs << string_format("%d,%d,%d,%d\n", reqTime, start, end, dist_new);
+            }
+        }
+    }
+    ofs.close(); 
+*/
 
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;

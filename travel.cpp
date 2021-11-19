@@ -302,9 +302,6 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                     passedDist += treeCost.get_dist(order[i - 1], order[i], simplestCheck).second;
                     finalPath.push_back(make_pair(beginTime + ceil((double(passedDist)) / velocity*1.0), order[i]));
                 }
-                if (passedDist != fpResult.second) {
-                    bool bSumOfPartsEqual = false;
-                }
                 if (finalPath.size() > 0) {
                     int diff = finalPath[finalPath.size() - 1].first - ansPath[m].first;
                     if (diff < 0) {

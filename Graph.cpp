@@ -61,7 +61,7 @@ void Graph::add_D(int a, int b, float c, float d)//Add a directed edge with a->b
 
 void Graph::add(int a, int b, float c, float d)//Add an undirected edge with a<->b weight c
 {
-	add_D(a, b, c * cost_scale_factor, d);
+	add_D(a, b, c*cost_scale_factor, d);
 	add_D(b, a, c*cost_scale_factor, d);
 }
 

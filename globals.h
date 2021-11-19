@@ -44,6 +44,8 @@ static const bool RevE = true;//false represents a directed graph，true Represe
 static const int Naive_Split_Limit = 33;//The sub-graph size is smaller than this value
 static const int INF = 0x3fffffff;
 
+static const std::string stdOutput = "CONOUT$";
+
 extern const int time_step;
 extern const int max_node;
 extern const int max_wait_sec;
