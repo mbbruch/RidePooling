@@ -234,7 +234,7 @@ void update_requests_with_dist(FILE*& in) {
     these_served_reqs = 0;
     int num = 0;
     std::ofstream ofs;
-    ofs.open("C:/Code_Projects/RidePooling/In/requests_with_dist.csv", std::ofstream::out | std::ofstream::app);
+    ofs.open(baseInDir + "requests_with_dist.csv", std::ofstream::out | std::ofstream::app);
     while (num != EOF) {
         num = fscanf(in, "%d,%d,%d, %d\n", &reqTime, &start, &end, &dist);
         if (num != EOF) {

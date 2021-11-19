@@ -15,7 +15,7 @@ double travel_max;
 int max_vehicle;
 int dist_map_size;
 
-std::string baseOutDir = "C:/Code_Projects/RidePooling/Out/";
+std::string baseOutDir = baseDir + "Out/";
 std::string outDir;
 std::string logFile;
 

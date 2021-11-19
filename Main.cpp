@@ -24,8 +24,6 @@ using namespace std;
 
 
 int main(int argc, char* argv[]) {
-    std::string reqFile = "C:/Code_Projects/RidePooling/In/requests_with_dist.csv";//argv[1];
-    std::string vehFile = "C:/Code_Projects/RidePooling/In/vehicles.csv";//argv[2];
     std::string filenameTime = GetCurrentTimeForFileName();
     outDir = baseOutDir + filenameTime + "/";
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
@@ -54,7 +52,7 @@ int main(int argc, char* argv[]) {
 
     //  while ((getchar()) != '\n');
     print_line(outDir, logFile, "Start initializing");
-    treeCost.EdgeWeightsFile = Cost_File;
+    treeCost.EdgeWeightsFile = costFile;
     treeCost.initialize(false);
 
     print_line(outDir, logFile, "load_end");

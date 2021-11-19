@@ -103,7 +103,7 @@ void GPTree::read()
 	fclose(in);
 	if (Optimization_Euclidean_Cut) //TODO revisit; would this help?
 	{
-		in = fopen(Node_File, "r");
+		in = fopen(nodeFile.c_str(), "r");
 		double d1, d2;
 		int area = 0;
 		for (i = 0; i<G.n; i++)//读取边
@@ -119,7 +119,7 @@ void GPTree::read()
 void GPTree::save()
 {
 	printf("begin save\n");
-	freopen(GPTree_File, "w", stdout);
+	freopen(GPTreeFile.c_str(), "w", stdout);
 	G.save();
 	printf("%d %d %d\n", root, node_tot, node_size);
 	save_vector(id_in_node);
@@ -136,7 +136,7 @@ void GPTree::save()
 }
 void GPTree::load()
 {
-	FILE* in = freopen(GPTree_File, "r", stdin);
+	FILE* in = freopen(GPTreeFile.c_str(), "r", stdin);
 	printf("load_begin\n");
 	G.load();
 	scanf("%d%d%d", &root, &node_tot, &node_size);
@@ -179,21 +179,21 @@ void GPTree::initialize(bool load_cache) {
 
 void GPTree::save_dist_map() {
 
-	FILE* out = fopen(DistMap_File, "w");
+	FILE* out = fopen(DistMapFile.c_str(), "w");
 	save_map_intpair_intpair(dist_map,out);
 	fclose(out);
 }
 
 void GPTree::load_dist_map()
 {
-	FILE* in = fopen(DistMap_File, "r");
+	FILE* in = fopen(DistMapFile.c_str(), "r");
 	load_map_intpair_intpair(dist_map);
 	fclose(in);
 }
 
 void GPTree::init_dist_map()
 {
-	FILE* in = fopen(ST_File, "r");
+	FILE* in = fopen(STFile.c_str(), "r");
 	int size;
 	fscanf(in, "%d\n", &size);
 	vector<int> nodes;
