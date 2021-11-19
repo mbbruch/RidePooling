@@ -56,6 +56,7 @@ int main(int argc, char* argv[]) {
     print_line(outDir, logFile, "Start initializing");
     treeCost.EdgeWeightsFile = Cost_File;
     treeCost.initialize(false);
+
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);

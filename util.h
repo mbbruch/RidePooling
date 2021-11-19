@@ -32,6 +32,7 @@ void read_vehicles(const char* file, vector<Vehicle>& vehicles);
 void setup_vehicles(int nCars, vector<Vehicle>& vehicles);
 
 bool read_requests(FILE*& in, vector<Request>& requests, int toTime);
+void update_requests_with_dist(FILE*& in);
 
 void handle_unserved(vector<Request>& unserved, vector<Request>& requests, int nowTime);
 
