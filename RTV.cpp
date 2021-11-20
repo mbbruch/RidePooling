@@ -56,7 +56,7 @@ void RTVGraph::add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost) {
     TIdxComparable tIdxComparable(tIdx);
 	#pragma omp critical (addetv2)
     tIdx_vCostIdxes[tIdxComparable].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfCars(gen1), vIdx}));
-    #pragma omp critical (addetv3)
+    //#pragma omp critical (addetv3)
     vIdx_tIdxes[vIdx].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfTrips(gen2), tIdx}));
 }
 

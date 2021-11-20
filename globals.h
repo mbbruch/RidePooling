@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <map>
 #include <set>
+#include <vector>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -27,15 +28,16 @@ static const int max_trip_size = 8;
 static const std::chrono::time_point startTime = std::chrono::system_clock::now();
 static const std::string baseDir = "C:/Code_Projects/RidePooling/";
 static const std::string city = "austin";
+static const std::string costs = "private";
 static const std::string baseInDir = baseDir + "In/";
 static const std::string distFile = baseInDir + city + ".dist"; // In the first line, two integers n, m represent the number of points and edges, 
                                     //and in the next m lines, three integers U, V, C represent U->V has an edge of length C
-static const std::string costFile = baseInDir + city + ".cost";// In the first line, two integers n, m represent the number of points and edges, 
+static const std::string costFile = baseInDir + city + "_" + costs + ".cost";// In the first line, two integers n, m represent the number of points and edges, 
                                     //and in the next m lines, three integers U, V, C represent U->V has an edge of length C
 static const std::string nodeFile = baseInDir + city + ".co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
                                     //of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
 static const std::string GPTreeFile = baseInDir + "GP_Tree.data";
-static const std::string DistMapFile = baseInDir + "dist_map.hps";
+static const std::string DistMapFile = baseInDir + city + "_" + costs + "_dist_map.hps";
 static const std::string reqFile = baseInDir + "requests_with_dist.csv";//argv[1];
 static const std::string vehFile = baseInDir + "vehicles.csv";//argv[2];
 static const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
