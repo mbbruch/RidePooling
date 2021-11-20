@@ -21,6 +21,7 @@
 #include "Matrix.h"
 #include "globals.h"
 #include "util.h"
+#include "hps_src/hps.h"
 int times[10];//辅助计时变量；
 
 using namespace std;
@@ -169,112 +170,32 @@ void GPTree::initialize(bool load_cache) {
 		Additional_Memory = 2 * G.n*log2(G.n);
 		printf("G.real_border:%d\n", G.real_node());
 		build();
+		init_dist_map();
 		//TIME_TICK_END
 		//TIME_TICK_PRINT("build from scratch")
 		//save();
 	}
-
 }
 
-void GPTree::save_dist_map() {
-
-	FILE* out = fopen(DistMapFile.c_str(), "w");
-	save_map_intpair_intpair(dist_map,out);
-	fclose(out);
-}
-
-void GPTree::load_dist_map()
-{
-	FILE* in = fopen(DistMapFile.c_str(), "r");
-	load_map_intpair_intpair(dist_map);
-	fclose(in);
-}
-
-void GPTree::init_dist_map()
-{
-	FILE* in = fopen(STFile.c_str(), "r");
-	int size;
-	fscanf(in, "%d\n", &size);
-	vector<int> nodes;
-	nodes.reserve(size);
-	int j;
-	for (int i = 0; i < size; i++)
-	{
-		fscanf(in, "%d\n", &j);
-		nodes.push_back(j);
-	}
-	fclose(in);
-
+void GPTree::init_dist_map() {
 	dist_map.clear();
-	dist_map.reserve(size * (size - 1) / 2);
-	dist_map.rehash(1.0 * (nodes.size() * (nodes.size() - 1) / 2));
-	int this_s, this_t;
-	for (int s = 0; s < size; s++) {
-		this_s = nodes[s];
-		for (int t = s + 1; t < size; t++) {
-			this_t = nodes[t];
-			dist_map[pair<int, int>{this_s, this_t}] = search_cache(this_s - 1, this_t - 1);
+	std::ifstream in_file(DistMapFile, std::ifstream::binary);
+	in_file.seekg(0, in_file.end);
+	size_t serialized_size = in_file.tellg();
+	in_file.seekg(0, in_file.beg);
+	dist_map = hps::from_stream<std::vector<pair<int, int>>>(in_file);
+	int nCombos = max_node * (max_node - 1) / 2;
+	if (dist_map.size() < nCombos) {
+		dist_map.reserve(max_node * (max_node - 1) / 2);
+		for (int i = 1; i <= max_node; i++) {
+			for (int j = i + 1; j <= max_node; j++) {
+				dist_map.push_back(search_cache(i - 1, j - 1));
+			}
 		}
+		std::ofstream out_file(DistMapFile, std::ofstream::binary);
+		hps::to_stream(dist_map, out_file);
+		out_file.close();
 	}
-	dist_map.rehash(1.0 * (nodes.size() * (nodes.size() - 1) / 2));
-	save_dist_map();
-}
-
-void GPTree::reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
-	vector<int>& vec1, vector<int>& vec2) {
-	dist_map.clear();
-	for (auto it = ongoingLocs.begin(); it != ongoingLocs.end(); it++) {
-		if ((*it).first == (*it).second) continue;
-//		if ((*it).first < (*it).second) {
-			dist_map.try_emplace(pair<int, int>{(*it).first, (*it).second}, search_cache((*it).first - 1, (*it).second - 1));
-//		}
-//		else {
-			dist_map.try_emplace(pair<int, int>{(*it).second, (*it).first}, search_cache((*it).second - 1, (*it).first - 1));
-//		}
-	}
-	
-	int i = 0;
-	const int vec1Size = vec1.size();
-	for (int i = 0; i < vec1Size; i++) {
-		int this_s = vec1[i];
-		int this_t = 0;
-		for (int j = i + 1; j < vec1Size; j++) {
-			this_t = vec1[j];
-//			#pragma omp critical(updateMop)
-//			{
-			dist_map.try_emplace(pair<int, int>{this_s, this_t}, search_cache(this_s - 1, this_t - 1));
-			dist_map.try_emplace(pair<int, int>{this_s, this_t}, search_cache(this_s - 1, this_t - 1));
-//			}
-		}
-	}
-	for (int i = 0; i < vec1Size; i++) {
-		int this_s = vec1[i];
-		int this_t = 0;
-		for (int j = i + 1; j < vec1Size; j++) {
-			this_t = vec1[j];
-			//			#pragma omp critical(updateMop)
-			//			{
-			dist_map.try_emplace(pair<int, int>{this_t, this_s}, search_cache(this_t - 1, this_s - 1));
-			//			}
-		}
-	}
-
-	i = 0;
-	const int vec2Size = vec2.size();
-//	#pragma omp parallel for default(none) private(i) shared(vec2, mop, tree)
-	for (int i = 0; i < vec2Size; i++) {
-		int this_s = vec2[i];
-		int this_t = 0;
-		for (int j = i + 1; j < vec2Size; j++) {
-			this_t = vec2[j];
-//			#pragma omp critical(updateMop)
-//			{
-			dist_map.try_emplace(pair<int, int>{this_s, this_t}, search_cache(this_s - 1, this_t - 1));
-			dist_map.try_emplace(pair<int, int>{this_t, this_s}, search_cache(this_t - 1, this_s - 1));
-//			}
-		}
-	}
-	dist_map.rehash(dist_map.size());
 }
 
 void GPTree::write()
@@ -694,21 +615,30 @@ std::pair<int, int> GPTree::get_dist(int S, int T, bool simplestCheck, bool bOnl
 	if (S == T) {
 		return std::pair<int,int>{0,0};
 	}
-
-	if (bOnlySearchCache) {
-		std::pair<int, int> toReturn = search_cache(S - 1, T - 1);
-		return toReturn;
+	int s_ = S; 
+	int t_ = T;
+	if (S > T) {
+		s_ = T;
+		t_ = S;
 	}
-	else {
-		auto found = dist_map.find(make_pair(S, T));
-		if (found != dist_map.end()) {
-			return found->second;
-		}
-		else {
-			std::pair<int, int> toReturn = search_cache(S - 1, T - 1);
-			return toReturn;
-		}
-	}
+/*	example where max_node = 100:
+	1 to 2... 100 = 99 entries = 0:98
+	2 to 3... 100 = 98 entries = 99 : 196
+	3 to 4... 100 = 97 entries = 197 : 293
+	4 to 5... 100 = 96 entries = 294 : 389
+	5 to 6... 100 = 95 entries = 390 : 484
+	6 to 7... 100 = 94 entries = 485 : 578
+	7 to 8... 100 = 93 entries = 579 : 671
+	index of first entries :
+	entry 1, 2 = 0 = (1 - 1) * 100 - 1 * (1 - 0) / 2
+	entry 2, 3 = 99 = (2 - 1) * 100 - 2 * (2 - 1) / 2
+	entry 3, 4 = 197 = (3 - 1) * 100 - 3 * (3 - 1) / 2
+	entry 4, 5 = 294 = (4 - 1) * 100 - 4 * (4 - 1) / 2
+	entry 5, 6 = 390 = (5 - 1) * 100 - 5 * (5 - 1) / 2
+	entry 6, 7 = 485 = (6 - 1) * 100 - 6 * (6 - 1) / 2
+	entry 7, 8 = 579 = (7 - 1) * 100 - 7 * (7 - 1) / 2
+	so s->t is at(s - 1) * max_node - s * (s - 1) / 2 + (t - s - 1) */
+	return dist_map[(s_ - 1) * max_node - s_ * (s_ - 1) / 2 + (t_ - s_ - 1)];
 }
 
 //Query the shortest path length of S-T, 

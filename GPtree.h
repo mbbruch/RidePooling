@@ -13,7 +13,7 @@ struct coor { coor(double a = 0.0, double b = 0.0) :x(a), y(b) {}double x, y; };
 struct GPTree
 {
 	std::string EdgeWeightsFile;
-	pairs_to_pairs dist_map;
+	stMap dist_map;
 	Graph G;
 	int root;
 	vector<int>id_in_node;//The leaf node number where the real node is
@@ -26,10 +26,7 @@ struct GPTree
 	double Euclidean_Dist(int S, int T);
 	void read();
 	void initialize(bool load_cache);
-	void save_dist_map();
-	void load_dist_map();
 	void init_dist_map();
-	void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs, vector<int>& vec1, vector<int>& vec2);
 	void init_rand();
 	void save();
 	void load();

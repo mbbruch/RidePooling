@@ -47,34 +47,23 @@ int main(int argc, char* argv[]) {
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
     total_dist = unserved_dist = raw_dist = 0;
     total_wait_time = 0;
-    dist_map_size = 0;
     disconnectedCars = 0;
 
     //  while ((getchar()) != '\n');
     print_line(outDir, logFile, "Start initializing");
     treeCost.EdgeWeightsFile = costFile;
     treeCost.initialize(false);
+    vector<int> order;
+    std::pair<int,int> result1 = treeCost.get_dist(2617, 2684); //should be 290070 distance
+    pair<int, int> result2 = treeCost.search_cache(2617 - 1, 2684 - 1);
+    pair<int, int> fpResult1 = treeCost.find_path(2617 - 1, 2684 - 1, order);
+    pair<int,int> result3 = treeCost.get_dist(8, 7184); //should be 43.16695064 12560
+    pair<int, int> result4 = treeCost.search_cache(8 - 1, 7184 - 1);
+    pair<int, int> fpResult2 = treeCost.find_path(8 - 1, 7184 - 1, order);
+    result3 = treeCost.get_dist(1350, 1290); //should be 43.16695064 12560; 12600948
+    result4 = treeCost.search_cache(1350 - 1, 1290 - 1);
+    fpResult2 = treeCost.find_path(1350 - 1, 1290 - 1, order);
 	cout << " tree initialized" << endl;
-
-/*
-    FILE* in = get_requests_file(reqFile.c_str());
-	int start, end, reqTime, dist, dist_new;
-    these_reqs = 0;
-    these_served_reqs = 0;
-    int num = 0;
-    std::ofstream ofs;
-    ofs.open(baseInDir + "requests_with_dist.csv", std::ofstream::out | std::ofstream::app);
-    while (num != EOF) {
-        num = fscanf(in, "%d,%d,%d\n", &reqTime, &start, &end);
-        if (num != EOF) {
-            if (start != end) {
-                dist_new = treeCost.get_dist(start, end).first;
-                ofs << string_format("%d,%d,%d,%d\n", reqTime, start, end, dist_new);
-            }
-        }
-    }
-    ofs.close(); 
-*/
 
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
@@ -118,48 +107,6 @@ int main(int argc, char* argv[]) {
 
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Preprocessing time = %f", elapsed_seconds.count()));
-
-        //one-to-one: vehicle locations + ongoing request locations
-        //all-to-all 1: vehicle locations + new request locations (start points only)
-        //all-to-all 2: ongoing request locations + new requestion locations
-		
-		beforeTime = std::chrono::system_clock::now();
-        std::set<std::pair<int, int>> ongoingLocs;
-        std::set<int> allToAll1;
-        std::set<int> allToAll2;
-        for (int i = 0; i < vehicles.size(); i++) {
-            const int vehLoc = vehicles[i].get_location();
-            allToAll1.emplace(vehLoc);
-            for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
-                ongoingLocs.insert({
-                    std::pair{vehLoc, vehicles[i].passengers[j].start },
-                    std::pair{ vehLoc, vehicles[i].passengers[j].end },
-                    std::pair{ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end } });
-                allToAll2.insert({ vehicles[i].passengers[j].start, vehicles[i].passengers[j].end});
-                }
-                }
-        for (int i = 0; i < requests.size(); i++) {
-            allToAll1.emplace(requests[i].start);
-            allToAll2.insert({ requests[i].start, requests[i].end });
-        }
-        pairs_to_pairs dist{ 2*(ongoingLocs.size() +
-            (allToAll1.size() * (allToAll1.size() - 1) / 2) +
-            (allToAll2.size() * (allToAll2.size() - 1) / 2)) };
-
-		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
-        print_line(outDir,logFile,string_format("Dist map combo set up time = %f", elapsed_seconds.count()));
-		beforeTime = std::chrono::system_clock::now();
-        vector<int> vec1{ allToAll1.begin(), allToAll1.end() };
-        set<int>().swap(allToAll1);
-        vector<int> vec2{ allToAll2.begin(), allToAll2.end() };
-        set<int>().swap(allToAll2);
-        treeCost.reinitialize_dist_map(ongoingLocs, vec1, vec2);
-        vector<int>().swap(vec1);
-        vector<int>().swap(vec2);
-        set<pair<int, int>>().swap(ongoingLocs);
-		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
-        print_line(outDir,logFile,string_format("Dist map set up time = %f", elapsed_seconds.count())); 
-
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;

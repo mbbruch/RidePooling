@@ -21,7 +21,6 @@ extern int travel_cnt;
 extern double travel_max;
 
 extern int max_vehicle;
-extern int dist_map_size;
 
 static const int max_capacity = 2;
 static const int max_trip_size = 8;
@@ -36,8 +35,7 @@ static const std::string costFile = baseInDir + city + ".cost";// In the first l
 static const std::string nodeFile = baseInDir + city + ".co"; //A total of N lines, an integer and two real numbers for each line id, x, y represents the longitude and latitude 
                                     //of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
 static const std::string GPTreeFile = baseInDir + "GP_Tree.data";
-static const std::string DistMapFile = baseInDir + "dist_map_" + city + ".data";
-static const std::string STFile = "dist_map_chicago.data";
+static const std::string DistMapFile = baseInDir + "dist_map.hps";
 static const std::string reqFile = baseInDir + "requests_with_dist.csv";//argv[1];
 static const std::string vehFile = baseInDir + "vehicles.csv";//argv[2];
 static const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
@@ -110,6 +108,7 @@ public:
     };
 };
 //typedef std::unordered_set<std::unordered_set<int>, MyHash> set_of_uos;
+typedef std::vector<pair<int, int>> stMap;
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;
 typedef std::unordered_map<pair<int, int>, pair<int,int>, PairHash> pairs_to_pairs;
