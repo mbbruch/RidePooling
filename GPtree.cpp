@@ -16,12 +16,12 @@
 #include<cmath>
 #include<queue>
 #include<sys/timeb.h>
+#include "hps_src/hps.h"
 #include "GPtree.h"
 #include "Graph.h"
 #include "Matrix.h"
 #include "globals.h"
 #include "util.h"
-#include "hps_src/hps.h"
 int times[10];//辅助计时变量；
 
 using namespace std;
