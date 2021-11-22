@@ -73,7 +73,7 @@ class RTVGraph {
 
     int getTIdx(const uos& trip);
 
-    void add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost);
+    void add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost);
     void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
 
     void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, 

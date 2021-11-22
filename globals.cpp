@@ -18,7 +18,7 @@ std::string baseOutDir = baseDir + "Out/";
 std::string outDir;
 std::string logFile;
 
-extern const int time_step = 60*15;
+extern const int time_step = 60*5;
 extern const int max_node = 10016; //264346;
 extern const int max_wait_sec = 60*15;
 extern const int max_delay_sec = 60 * 15; // max_wait_sec;

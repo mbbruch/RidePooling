@@ -49,7 +49,7 @@ int RTVGraph::addVehicleId(int vehicleId) {
     return numVehicles++;
 }
 
-void RTVGraph::add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost) {
+void RTVGraph::add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost) {
     int tIdx;
     #pragma omp critical (addetv1)
     tIdx = getTIdx(reqsInTrip);
@@ -309,18 +309,18 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         int elementSize = 0;
         if (completeCliques >= 0) {
 			vector<pair<const uos, pair<int, uos>>*> elements;
-            if (k == 2) {
-                elements.reserve(newTrips.size());
+            if (k > 2) {
+                for (auto it = newTrips.begin(); it != newTrips.end(); )
+                {   //complete clique requirement: all k subsets of size k-1 must be in here
+                    if (it->second.second.size() == k && it->second.first >= k * (k - 1) / 2) {++it; }
+                    else { newTrips.erase(it++); }
+                }
             }
-            if (k == 3) {
-                int x = 5;
-            }
+            newTrips.rehash(0);
+            elements.reserve(newTrips.size());
 			for(auto it = newTrips.begin(); it != newTrips.end(); it++){
-				if(2==k || (it->second.second.size()==k && it->second.first>=k*(k-1)/2)){ //complete clique requirement: all k subsets of size k-1 must be in here
-                        elements.push_back(&(*it));
-                    }
+                elements.push_back(&(*it));
 			}
-			elements.shrink_to_fit();
 			elementSize = elements.size();
             //std::vector<std::pair<uos, pair<int, uos>>> vecNewTrips{ newTrips.begin(), newTrips.end() };
             #pragma omp parallel for default(none) shared(elements, requests, k,thisSizeCounter, vehConnex, rvGraph, treeCost)
@@ -342,7 +342,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                         }
                     }
 
-                    if (bVehicleIncludes = false) {
+                    if (bVehicleIncludes == false) {
                         continue;
                     }
                 }
@@ -391,12 +391,13 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             }
         vector<pair<const uos, pair<int, uos>>*>().swap(elements);
         }
+        map_of_uos().swap(newTrips);
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-startOfSizeK;
 		print_line(outDir,logFile,string_format("Potential %d-trips built (%f seconds, %d/%d met clique reqmt, %d were kept).", 
             k,
             elapsed_seconds.count(),
             elementSize,
-            newTripsSize
+            newTripsSize,
             thisSizeCounter
         ));
         lastSizeSize = thisSizeCounter;
@@ -410,22 +411,25 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
     const map<int, int>&  req_costs = rvGraph->get_vehicle_edges(vehicleId); //map of req to cost
 
     int numPreviousSize = 0;
-    vector<tripCandidate> thisSizeVec = allPotentialTrips[0];
-    vector<tripCandidate> nextSizeVec = allPotentialTrips[1];
-    bool bNextSizeExists = nextSizeVec.size() > 0;
+    const vector<tripCandidate>& sizeZeroVec = allPotentialTrips[0];
+    const vector<tripCandidate>& sizeOneVec = allPotentialTrips[1];
+    std::vector<bool> thisSizeRuledOut(sizeZeroVec.size(), false);
+    std::vector<bool> nextSizeRuledOut(sizeOneVec.size(), false);
+    bool bNextSizeExists = (sizeOneVec.size() > 0);
     if (!bNextSizeExists) {
         return;
     }
-    for (auto it = thisSizeVec.begin(); it != thisSizeVec.end(); it++) {
-        tripCandidate& thisCandidate = *it;
+    for (int i = 0; i < sizeZeroVec.size(); i++) {
+        const tripCandidate& thisCandidate = sizeZeroVec[i];
         int reqIdx = *(thisCandidate.requests.begin());
         auto req_cost_it = req_costs.find(reqIdx);
         if (req_cost_it == req_costs.end()) {
-            thisCandidate.ruledOut = true;
+            thisSizeRuledOut[i] = true;
             for (int i = 0; i < thisCandidate.dependentTrips.size(); i++) {
-                nextSizeVec[thisCandidate.dependentTrips[i]].ruledOut = true;
+                nextSizeRuledOut[thisCandidate.dependentTrips[i]] = true;
             }
-        } else {
+        }
+        else {
             numPreviousSize++;
         }
     }
@@ -436,12 +440,15 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
     for (int k = 2; k <= max_trip_size; k++) {
         // Ex: to combine 4 requests, previous entry is 3-way combos, of which we need at least 4: 1-2-3, 1-2-4, 1-3-4, 2-3-4
         if (numPreviousSize < k || !bNextSizeExists) break;
-        thisSizeVec.swap(nextSizeVec);
-        nextSizeVec = allPotentialTrips[k];
+
+        const vector<tripCandidate>& thisSizeVec = allPotentialTrips[k - 1];
+        const vector<tripCandidate>& nextSizeVec = allPotentialTrips[k];
+        thisSizeRuledOut.swap(nextSizeRuledOut);
+        nextSizeRuledOut.assign(nextSizeVec.size(), false);
         numPreviousSize = 0;
         bNextSizeExists = allPotentialTrips.size() > k && allPotentialTrips[k].size() > 0;
         for (int j = 0; j < thisSizeVec.size(); j++){
-            if (!thisSizeVec[j].ruledOut) {
+            if (!thisSizeRuledOut[j]) {
  				bool bRuledOut = false;
                 vector<Request> copiedRequests;		 
                 for (auto itr = thisSizeVec[j].requests.begin(); itr != thisSizeVec[j].requests.end(); itr++) {
@@ -454,7 +461,7 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
                 }
 
 				if(bRuledOut){
-					thisSizeVec[j].ruledOut = true;
+                    thisSizeRuledOut[j] = true;
 				}
 				else{
                 TravelHelper th;
@@ -463,13 +470,13 @@ void RTVGraph::build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& ve
                     add_edge_trip_vehicle(thisSizeVec[j].requests, vIdx, th.getTravelCost());
                     numPreviousSize++;
                 } else {
-                    thisSizeVec[j].ruledOut = true;
+                    thisSizeRuledOut[j] = true;
                 }
             }
             }
-            if (thisSizeVec[j].ruledOut && bNextSizeExists) {
+            if (thisSizeRuledOut[j] && bNextSizeExists) {
                 for (int i = 0; i < thisSizeVec[j].dependentTrips.size(); i++) {
-                    nextSizeVec[thisSizeVec[j].dependentTrips[i]].ruledOut = true;
+                    nextSizeRuledOut[thisSizeVec[j].dependentTrips[i]] = true;
                 }
             }
         }
