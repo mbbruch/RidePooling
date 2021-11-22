@@ -10,8 +10,9 @@
 #include <map>
 #include <cmath>
 #include <chrono>
-#include "util.h"
 #include <unordered_set>
+#include <omp.h>
+#include "util.h"
 #include "Vehicle.h"
 #include "util.h"
 #include "globals.h"
@@ -262,12 +263,11 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
     }
 }
 
-void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests,
-    int nowTime) {
+void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests, int nowTime) {
     int i = 0;
-    for (auto it = vehicles.begin(); it != vehicles.end(); it++) {
-        it->update(nowTime, requests, i);
-        i++;
+#pragma omp parallel for default(none) private(i) shared(vehicles, requests)
+    for (i = 0; i < vehicles.size(); i++) {
+        vehicles[i].update(nowTime, requests, i);
     }
 }
 

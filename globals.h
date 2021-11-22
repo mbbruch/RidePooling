@@ -40,6 +40,9 @@ static const std::string GPTreeFile = baseInDir + "GP_Tree.data";
 static const std::string DistMapFile = baseInDir + city + "_" + costs + "_dist_map.hps";
 static const std::string reqFile = baseInDir + "requests_with_dist.csv";//argv[1];
 static const std::string vehFile = baseInDir + "vehicles.csv";//argv[2];
+static const std::string medoidFile = baseInDir + city + "_area_medoids.txt";
+static const std::string forecastFile = baseInDir + city + "_forecasts.txt";
+static const int numAreas = 17;
 static const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
 static const int Naive_Split_Limit = 33;//The sub-graph size is smaller than this value
 static const int INF = 0x3fffffff;
@@ -114,5 +117,6 @@ typedef std::vector<pair<int, int>> stMap;
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;
 typedef std::unordered_map<pair<int, int>, pair<int,int>, PairHash> pairs_to_pairs;
+typedef std::unordered_map<pair<int, int>, vector<int>, PairHash> pairs_to_vec;
 typedef std::unordered_set<pair<int, int>, PairHash> set_of_pairs;
 typedef std::unordered_set<uos, MyHash> uos_of_uos;

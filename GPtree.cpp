@@ -102,19 +102,42 @@ void GPTree::read()
 		else G.add(j - 1, k - 1, l, m);//Two-way edge
 	}
 	fclose(in);
-	if (Optimization_Euclidean_Cut) //TODO revisit; would this help?
+
+
+	node_areas.clear();
+	node_areas.reserve(G.n);
+	in = fopen(nodeFile.c_str(), "r");
+	double d1, d2;
+	int area = 0;
+	for (i = 0; i < G.n; i++)//读取边
 	{
-		in = fopen(nodeFile.c_str(), "r");
-		double d1, d2;
-		int area = 0;
-		for (i = 0; i<G.n; i++)//读取边
+		//int temp;
+		int x = fscanf(in, "%d %lf %lf %d\n", &j, &d1, &d2, &area);
+		node_areas.push_back(area);
+		if (Optimization_Euclidean_Cut) //TODO revisit; would this help?
 		{
-			//int temp;
-			fscanf(in, "%d %lf %lf %d\n", &j, &d1, &d2, &area);
 			coordinate.push_back(coor(d1, d2));
 		}
-		fclose(in);
 	}
+	fclose(in);
+	in = fopen(medoidFile.c_str(), "r");
+	int medoid = 0;
+	area_medoids.clear();
+	while (2 == fscanf(in, "%d %d\n", &area, &medoid)) {
+		area_medoids.push_back(medoid);
+	}
+	fclose(in);
+
+	fclose(in);
+	in = fopen(forecastFile.c_str(), "r");
+	int time = 0; area = 0; int forecast5 = 0, forecast10 = 0, forecast15 = 0, forecast30 = 0;
+	area_forecasts.clear();
+	while (6 == fscanf(in, "%d %d %d %d %d %d\n", &time, &area, &forecast5, &forecast10, &forecast15, &forecast30)) {
+		vector<int> temp{ forecast5, forecast10, forecast15, forecast30 };
+		area_forecasts.try_emplace(make_pair(time, area),temp);
+	}
+	fclose(in);
+
 	cout << "read over" << endl;
 	printf("read over\n");
 }

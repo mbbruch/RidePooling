@@ -14,7 +14,7 @@
 #include <fstream>
 #include <iomanip>
 #include "gurobi_c++.h"
-
+#include "hps_src/hps.h"
 #include "globals.h"
 #include "RTV.h"
 #include "util.h"
@@ -53,16 +53,6 @@ int main(int argc, char* argv[]) {
     print_line(outDir, logFile, "Start initializing");
     treeCost.EdgeWeightsFile = costFile;
     treeCost.initialize(false);
-    vector<int> order;
-    std::pair<int,int> result1 = treeCost.get_dist(2617, 2684); //should be 290070 distance
-    pair<int, int> result2 = treeCost.search_cache(2617 - 1, 2684 - 1);
-    pair<int, int> fpResult1 = treeCost.find_path(2617 - 1, 2684 - 1, order);
-    pair<int,int> result3 = treeCost.get_dist(8, 7184); //should be 43.16695064 12560
-    pair<int, int> result4 = treeCost.search_cache(8 - 1, 7184 - 1);
-    pair<int, int> fpResult2 = treeCost.find_path(8 - 1, 7184 - 1, order);
-    result3 = treeCost.get_dist(1350, 1290); //should be 43.16695064 12560; 12600948
-    result4 = treeCost.search_cache(1350 - 1, 1290 - 1);
-    fpResult2 = treeCost.find_path(1350 - 1, 1290 - 1, order);
 	cout << " tree initialized" << endl;
 
     print_line(outDir, logFile, "load_end");
@@ -93,6 +83,7 @@ int main(int argc, char* argv[]) {
 
         handle_unserved(unserved, requests, now_time);
 
+        print_line(outDir, logFile, "Reading requests");
         if (read_requests(in, requests, now_time + time_step)) {
             //Note: the read_requests code reads one request beyond now_time+time_step (unless it returns false)
             tail = requests.back();
@@ -103,6 +94,7 @@ int main(int argc, char* argv[]) {
             hasMore = false;
         }
 
+        print_line(outDir, logFile, "Updating vehicles");
         update_vehicles(vehicles, requests, now_time);
 
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-beforeTime;

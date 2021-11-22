@@ -4,6 +4,7 @@
 #include <set>
 #include <fstream>
 #include <unordered_map>
+#include <omp.h>
 #include "util.h"
 #include "Request.h"
 #include "Vehicle.h"
@@ -338,6 +339,7 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
         // hasn't got on board
         if (iterPsngr->scheduledOnTime > baseTime) {
             iterPsngr->status = Request::waiting; 
+            #pragma omp critical(pushbackreq)
             newRequests.push_back(*iterPsngr);
         }
         else if (iterPsngr->scheduledOffTime <= baseTime) {

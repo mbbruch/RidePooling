@@ -20,6 +20,9 @@ struct GPTree
 	vector<vector<int> >car_in_node;//Used to hang border method KNN, record the number of each node boarding
 	vector<int>car_offset;//Used to record the distance between the car id and the node where the car is located
 	vector<coor>coordinate;
+	vector<int> node_areas;
+	vector<int> area_medoids;
+	pairs_to_vec area_forecasts;
 	int node_tot, node_size;
 	Node *node;
 	double coor_dist(const coor& a, const coor& b);
