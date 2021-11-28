@@ -19,15 +19,24 @@ class RTVGraph {
         uos requests;
         vector<int> dependentTrips;
         bool ruledOut;
+        int tIdx;
 
         tripCandidate(const uos& reqs) {
             requests = reqs;
             ruledOut = false;
+            tIdx = -1;
+        };
+
+        tripCandidate(const uos& reqs, int idx) {
+            requests = reqs;
+            ruledOut = false;
+            tIdx = idx;
         };
         tripCandidate(const tripCandidate& toCopy) {
             requests = toCopy.requests;
             dependentTrips = toCopy.dependentTrips;
             ruledOut = toCopy.ruledOut;
+            tIdx = toCopy.tIdx;
         };
     };
 
@@ -75,9 +84,8 @@ class RTVGraph {
 
     void add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost);
     void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
-
-    void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, 
-        RVGraph* rvGraph, vector<Request>& requests);
+    void build_single_vehicles(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, const map<int, int>& vehIDToVehIdx, int tripSize);
+    void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, RVGraph* rvGraph, vector<Request>& requests);
 
     void sort_edges();
 

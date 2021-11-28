@@ -97,6 +97,9 @@ int main(int argc, char* argv[]) {
         print_line(outDir, logFile, "Updating vehicles");
         update_vehicles(vehicles, requests, now_time);
 
+        std::chrono::duration<double> asdf = std::chrono::system_clock::now() - std::chrono::system_clock::now();
+        std::string temp = string_format("Rebalancing time = %f", asdf.count());
+
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Preprocessing time = %f", elapsed_seconds.count()));
 		beforeTime = std::chrono::system_clock::now();
@@ -109,6 +112,7 @@ int main(int argc, char* argv[]) {
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("RTV build time = %f", elapsed_seconds.count()));
 
+        delete RV;
 		beforeTime = std::chrono::system_clock::now();
 
         RTV->solve(env, vehicles, requests, unserved);
@@ -120,7 +124,6 @@ int main(int argc, char* argv[]) {
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Rebalancing time = %f", elapsed_seconds.count()));
 		
-        delete RV;
         delete RTV;
 
         clock_t tock = clock();
