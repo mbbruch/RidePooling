@@ -16,13 +16,13 @@ int max_vehicle;
 
 std::string baseOutDir = baseDir + "Out/";
 std::string outDir;
-std::string logFile;
+std::string logFile; 
 
 extern const int time_step = 60*5;
 extern const int max_node = 10016; //264346;
 extern const int max_wait_sec = 60*15;
 extern const int max_delay_sec = 60 * 15; // max_wait_sec;
-extern const int velocity = 84; // dm/s or 19 mph
+extern const int velocity = 84; // 84 dm/s = 19 mph
 
 extern const int penalty = max_delay_sec*1000;
 extern const int max_v_per_req = 20;

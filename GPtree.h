@@ -49,7 +49,7 @@ struct GPTree
 	void push_borders_up_path(int x, vector<int>& dist1, vector<int>& dist2);
 	int find_LCA(int x, int y);
 	std::pair<int,int> search(int S, int T);
-	std::pair<int, int> get_dist(int S, int T, bool simplestCheck=false, bool bOnlySearchCache=false);
+	std::pair<int, int> get_dist(int S, int T);
 	std::pair<int, int> search_cache(int S, int T, int bound = INF);
 	std::pair<int, int> find_path(const int S, const int T, vector<int>& order);
 	std::pair<int, int> find_path_simple(const int S, const int T, vector<int>& order);

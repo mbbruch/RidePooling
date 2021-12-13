@@ -45,6 +45,7 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename);
 std::string GetCurrentTimeForFileName();
 
 void print_stats(const std::string& outDir, const std::string& outFilename);
+void print_ram(const std::string& outDir, const std::string& descriptor);
 void print_line(const std::string& outDir, const std::string& outFilename, const std::string& message);
 void write_vehicle_routes(const std::string& outDir, const std::vector<Vehicle>& vehicles, int now_time);
 void log_stats();

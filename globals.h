@@ -1,6 +1,8 @@
 ﻿#pragma once
 #include <map>
 #include <set>
+#include <queue>
+#include <deque>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -102,6 +104,20 @@ public:
 
 };
 
+
+template<typename T, typename Container = std::deque<T> >
+class iterable_queue : public std::queue<T, Container>
+{
+public:
+    typedef typename Container::iterator iterator;
+    typedef typename Container::const_iterator const_iterator;
+
+    iterator begin() { return this->c.begin(); }
+    iterator end() { return this->c.end(); }
+    const_iterator begin() const { return this->c.begin(); }
+    const_iterator end() const { return this->c.end(); }
+};
+
 class PairHash
 {
 public:
@@ -113,6 +129,10 @@ public:
     };
 };
 //typedef std::unordered_set<std::unordered_set<int>, MyHash> set_of_uos;
+
+
+typedef std::pair<int, int> locReq;
+typedef std::set<locReq> targetSet;
 typedef std::vector<pair<int, int>> stMap;
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;

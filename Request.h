@@ -2,11 +2,13 @@
 
 class Request {
 public:
-    enum requestStatus { waiting, onBoard, droppedOff };
+    enum class requestStatus { waiting, onBoard, droppedOff };
     int start, end;
     int shortestDist;
     int reqTime, expectedOffTime;
     int scheduledOnTime, scheduledOffTime;
+    int allowedDelay;
+    int allowedWait;
     requestStatus status;
     int unique;
 

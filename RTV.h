@@ -84,7 +84,8 @@ class RTVGraph {
 
     void add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost);
     void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
-    void build_single_vehicles(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, const map<int, int>& vehIDToVehIdx, int tripSize);
+    void build_single_vehicles(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, const map<int, int>& vehIDToVehIdx, int tripSize,
+        const std::vector<std::vector<bool>>& prevInclusions, std::vector<std::vector<bool>>& theseInclusions);
     void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, RVGraph* rvGraph, vector<Request>& requests);
 
     void sort_edges();
@@ -101,7 +102,7 @@ class RTVGraph {
 public:
     RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>& requests);
 
-    void rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
+    void rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, bool bEquityVersion = false);
 
 	void prune();
     void solve(GRBEnv* env,

@@ -1,3 +1,4 @@
+#include "globals.h"
 #include "Request.h"
 
 int Request::nextUid = 0;
@@ -14,6 +15,8 @@ Request::Request(const Request& toCopy) {
     this->scheduledOffTime = toCopy.scheduledOffTime;
     this->status = toCopy.status;
     this->unique = toCopy.unique;
+    this->allowedDelay = toCopy.allowedDelay;
+    this->allowedWait = toCopy.allowedWait;
 }
 
 Request::Request(int start, int end, int reqTime) {
@@ -24,6 +27,8 @@ Request::Request(int start, int end, int reqTime) {
     this->expectedOffTime = -1;
     this->scheduledOnTime = -1;
     this->scheduledOffTime = -1;
-    this->status = waiting;
+    this->status = Request::requestStatus::waiting;
     this->unique = nextUid++;
+    this->allowedDelay = max_delay_sec;
+    this->allowedWait = max_wait_sec;
 }

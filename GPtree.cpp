@@ -22,7 +22,6 @@
 #include "Matrix.h"
 #include "globals.h"
 #include "util.h"
-int times[10];//辅助计时变量；
 
 using namespace std;
 
@@ -34,14 +33,10 @@ const bool Optimization_KNN_Cut = true;//Whether to enable the KNN pruning query
 const bool Optimization_Euclidean_Cut = false;//Whether to enable pruning algorithm based on Euclidean distance in cache query
 const int Partition_Part = 4;//K Fork Tree
 long long Additional_Memory = 0;//Additional space for building auxiliary matrices (int)
-const bool Distance_Offset = false;//KNN是否考虑车辆距离结点的修正距离
-const double R_earth = 6371000.0;//地球半径，用于输入经纬度转化为x,y坐标
-const double Unit = 0.1;//路网文件的单位长度/m
+const bool Distance_Offset = false;//KNN Whether to consider the correction distance of the vehicle from the node
+const double R_earth = 6371000.0;//Earth radius, used to input longitude and latitude into x,y coordinates
+const double Unit = 0.1;//Unit length of road network file/m
 const double PI = acos(-1.0);
-//#define //TIME_TICK_START gettimeofday( &tv, NULL ); ts = tv.tv_sec * 100000 + tv.tv_usec / 10;
-//#define //TIME_TICK_END gettimeofday( &tv, NULL ); te = tv.tv_sec * 100000 + tv.tv_usec / 10;
-//#define //TIME_TICK_PRINT(T) printf("%s RESULT: %lld (0.01MS)\r\n", (#T), te - ts );
-//struct timeval tv;
 
 double coor_dist(const coor& a, const coor& b)
 {
@@ -634,7 +629,7 @@ void GPTree::push_borders_up(int x, vector<int>& dist1, vector<int>& dist2, int 
 }
 
 //FROM HERE BELOW: the functions that are actually called during the simulations
-std::pair<int, int> GPTree::get_dist(int S, int T, bool simplestCheck, bool bOnlySearchCache) {
+std::pair<int, int> GPTree::get_dist(int S, int T) {
 	if (S == T) {
 		return std::pair<int,int>{0,0};
 	}

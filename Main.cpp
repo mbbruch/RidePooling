@@ -41,7 +41,8 @@ int main(int argc, char* argv[]) {
         print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
     }
 
-    env->set(GRB_IntParam_OutputFlag, 0);
+    env->set(GRB_IntParam_OutputFlag, 1);
+    env->set(GRB_IntParam_LogToConsole, 0);
     //env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
@@ -49,11 +50,15 @@ int main(int argc, char* argv[]) {
     total_wait_time = 0;
     disconnectedCars = 0;
 
+	print_ram(outDir,string_format("%d_start", now_time));
+
     //  while ((getchar()) != '\n');
     print_line(outDir, logFile, "Start initializing");
     treeCost.EdgeWeightsFile = costFile;
     treeCost.initialize(false);
+    print_line(outDir, logFile, "Initialized");
 	cout << " tree initialized" << endl;
+	print_ram(outDir,string_format("%d_initialized", now_time));
 
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
@@ -80,8 +85,27 @@ int main(int argc, char* argv[]) {
         if (hasMore) {
             requests.push_back(tail);
         }
-
+        map<int, int> reqCounter;
+        // insert new requests: s->t into src_dst
+        for (int i = 0; i < unserved.size(); i++) {
+            reqCounter[unserved[i].unique]++;
+        }
+        for (auto it = reqCounter.begin(); it != reqCounter.end(); it++) {
+            if (it->second > 1) {
+                int x = 5;
+            }
+        }
+        print_line(outDir, logFile, string_format("Unserved: %d", unserved.size()));
         handle_unserved(unserved, requests, now_time);
+        reqCounter.clear();
+        for (int i = 0; i < requests.size(); i++) {
+            reqCounter[requests[i].unique]++;
+        }
+        for (auto it = reqCounter.begin(); it != reqCounter.end(); it++) {
+            if (it->second > 1) {
+                int x = 5;
+            }
+        }
 
         print_line(outDir, logFile, "Reading requests");
         if (read_requests(in, requests, now_time + time_step)) {
@@ -93,10 +117,44 @@ int main(int argc, char* argv[]) {
         else {
             hasMore = false;
         }
+        reqCounter.clear();
+        for (int i = 0; i < requests.size(); i++) {
+            reqCounter[requests[i].unique]++;
+        }
+        for (auto it = reqCounter.begin(); it != reqCounter.end(); it++) {
+            if (it->second > 1) {
+                int x = 5;
+            }
+        }
 
         print_line(outDir, logFile, "Updating vehicles");
-        update_vehicles(vehicles, requests, now_time);
+        vector<Request> reqCopy = requests;
+        map<int, vector<int>> indices;
+        for (int i = 0; i < vehicles.size(); i++) {
+            for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
+                indices[vehicles[i].passengers[j].unique].push_back(i);
+            }
+        }
+        for (int i = 0; i < requests.size(); i++) {
+            indices[requests[i].unique].push_back(1000000 + i);
+        }
+        for (auto it = indices.begin(); it != indices.end(); it++) {
+            if (it->second.size() > 1) {
+                bool bDupeFound = true;
+            }
+        }
 
+        
+        update_vehicles(vehicles, requests, now_time);
+        reqCounter.clear();
+        for (int i = 0; i < requests.size(); i++) {
+            reqCounter[requests[i].unique]++;
+        }
+        for (auto it = reqCounter.begin(); it != reqCounter.end(); it++) {
+            if (it->second > 1) {
+                int x = 5;
+            }
+        }
         std::chrono::duration<double> asdf = std::chrono::system_clock::now() - std::chrono::system_clock::now();
         std::string temp = string_format("Rebalancing time = %f", asdf.count());
 
@@ -104,10 +162,21 @@ int main(int argc, char* argv[]) {
         print_line(outDir,logFile,string_format("Preprocessing time = %f", elapsed_seconds.count()));
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests);
+
+        reqCounter.clear();
+        for (int i = 0; i < requests.size(); i++) {
+            reqCounter[requests[i].unique]++;
+        }
+        for (auto it = reqCounter.begin(); it != reqCounter.end(); it++) {
+            if (it->second > 1) {
+                int x = 5;
+            }
+        }
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("RV build time = %f", elapsed_seconds.count()));
 
 		beforeTime = std::chrono::system_clock::now();
+		print_ram(outDir,string_format("%d_before_rtv_build", now_time));
         RTVGraph *RTV = new RTVGraph(RV, vehicles, requests);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("RTV build time = %f", elapsed_seconds.count()));
@@ -132,10 +201,16 @@ int main(int argc, char* argv[]) {
         log_stats();
         //write_vehicle_routes(outDir, vehicles, now_time);
         print_stats(outDir, outFilename);
-        for (auto it = utilization.begin(); it != utilization.end(); it++) {
-            if (it->first > 0) {
-                print_line(outDir,logFile,string_format("Vehicles serving %d passengers: %d.", it->first, it->second));
+        vector<int> carUtilization(max_trip_size + max_capacity, 0);
+        for (auto it = vehicles.begin(); it != vehicles.end(); it++) {
+            int psgrs = it->get_num_passengers();
+            if (carUtilization.size() > psgrs && psgrs > 0) {
+                carUtilization[psgrs - 1]++;
             }
+        }
+        for (int i = 0; i < carUtilization.size(); i++) {
+            if (carUtilization[i] == 0) continue;
+            print_line(outDir, logFile, string_format("Vehicles serving %d passengers: %d.", i+1, carUtilization[i]));
         }
         if (!hasMore) {
             break;

@@ -253,27 +253,41 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
     int nowTime) {
     
     for (auto iter = unserved.begin(); iter != unserved.end(); iter++) {
-        if (nowTime - iter->reqTime <= max_wait_sec) {
-            iter->status = Request::waiting;
-            iter->scheduledOnTime = -1;
-            requests.push_back(*iter);
-        } else {
-            unserved_dist += iter->shortestDist;
-        }
+        iter->status = Request::requestStatus::waiting;
+        iter->scheduledOnTime = -1;
+        iter->allowedDelay = iter->allowedDelay + time_step;
+        iter->allowedWait = iter->allowedWait + time_step;
     }
 }
 
 void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests, int nowTime) {
     int i = 0;
-#pragma omp parallel for default(none) private(i) shared(vehicles, requests)
+    vector<int> hasTheTrip;
+    set<int, vector<int>> indices;
+    for (i = 0; i < vehicles.size(); i++) {
+        for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
+            if (vehicles[i].passengers[j].start == 2354 && vehicles[i].passengers[j].end == 2002) {
+                hasTheTrip.push_back(i);
+            }
+        }
+    }
+    if (hasTheTrip.size() > 0) {
+        int x = 5;
+        if (hasTheTrip.size() > 1) {
+            x = 6;
+        }
+    }
+
+    #pragma omp parallel for default(none) private(i) shared(vehicles, nowTime, requests)
     for (i = 0; i < vehicles.size(); i++) {
         vehicles[i].update(nowTime, requests, i);
     }
+    int x = 5;
 }
 
 void finish_all(vector<Vehicle>& vehicles, vector<Request>& unserved) {
     for (int i = 0; i < vehicles.size(); i++) {
-        vehicles[i].finish_route(i);
+        vehicles[i].finish_route(i, now_time);
     }
     for (auto iter = unserved.begin(); iter != unserved.end(); iter++) {
         unserved_dist += iter->shortestDist;
@@ -287,7 +301,7 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
     std::filesystem::create_directories(outDir + "Pickups/");
     std::filesystem::create_directories(outDir + "Misc/");
     std::filesystem::create_directories(outDir + "Code/");
-	//std::filesystem::copy("/ocean/projects/eng200002p/mbruchon/Pooling", outDir + "Code/");
+	//std::filesystem::copy("/ocean/projects/eng200002p/mbruchon/Pooling/", outDir + "Code/");
 	//system(("cp -p /ocean/projects/eng200002p/mbruchon/RidePooling/*.* " + outDir + "Code/").c_str());
     std::ofstream ofs;
     ofs.open(outDir + outFilename, std::ofstream::out | std::ofstream::app);
@@ -317,6 +331,17 @@ void print_line(const std::string& outDir, const std::string& outFilename, const
     ofs.close();
 }
 
+void print_ram(const std::string& outDir, const std::string& descriptor) {
+	//system(("top -u mbruchon -n 1 -o %MEM > " + outFilename + ".txt").c_str());
+	std::ofstream ofs;
+    ofs.open(outDir + "memory_log.txt", std::ofstream::out | std::ofstream::app);
+	ofs << std::left << std::setfill(' ') << std::setw(48) << descriptor + ": ";
+    ofs.close();
+	//system(("top -u mbruchon -n 1 -o %MEM > " + outFilename + ".txt").c_str());
+	//system(("top -u mbruchon -bn 1 | grep mbruchon | grep main >> " + outDir + "memory_log.txt").c_str());
+	//system((std::string(R"(top -bn 1 | grep "^ " | awk '{ printf("%s%s%s%s\n","{CPU:"$9",","MEM:"$10",","CMD:"$12",","User:"$2"}"); }' | head -n 10 | tail -n +2 | grep mbruchon > )") +  outDir + "memory_log.txt").c_str());
+}
+
 void write_vehicle_routes(const std::string& outDir, const std::vector<Vehicle>& vehicles, int now_time) {
     std::ofstream ofs;
     for (int i = 0; i < vehicles.size(); i++) {
@@ -329,7 +354,7 @@ void write_vehicle_routes(const std::string& outDir, const std::vector<Vehicle>&
             ofs.open(outDir + "Riders/" + to_string(iter->unique) + ".csv", std::ofstream::out | std::ofstream::app);
             ofs << to_string(now_time) + "," + to_string(i) + "," + to_string(iter->start) + "," + to_string(iter->end) + "," +
                 to_string(iter->reqTime) + "," + to_string(iter->scheduledOnTime) + "," + to_string(iter->scheduledOffTime) + "," +
-                to_string(iter->status) + "\n";
+                to_string((int)iter->status) + "\n";
         }
         ofs.close();
     }
