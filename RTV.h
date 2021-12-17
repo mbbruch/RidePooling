@@ -84,8 +84,10 @@ class RTVGraph {
 
     void add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost);
     void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
-    void build_single_vehicles(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, const map<int, int>& vehIDToVehIdx, int tripSize,
-        const std::vector<std::vector<bool>>& prevInclusions, std::vector<std::vector<bool>>& theseInclusions);
+    void build_single_vehicles(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, 
+        const map<int, int>& vehIDToVehIdx, int tripSize,
+        const map<int, int>& adjustedTripIdxes,
+        const std::vector<std::set<int>>& prevInclusions, std::vector<std::set<int>>& theseInclusions);
     void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, RVGraph* rvGraph, vector<Request>& requests);
 
     void sort_edges();

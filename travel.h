@@ -21,7 +21,7 @@ public:
 	void dfs(Vehicle& vehicle, Request* reqs[], int numReqs,
 		targetSet& target, map<locReq, set<locReq> >& src_dst,
 		vector<pair<int, locReq> >& path, vector<Request>& schedule,
-		map<int,int>& occupancyChanges,
+		int occupancy,
 		int travelled, int nowDelays, int nowCost, int& beginTime, int beginOffset, const int nowTime,
 		bool decided, bool observeReqTimeLimits, bool bFeasibilityCheck);
 	int travel(Vehicle& vehicle, Request* reqs[], int numReqs, bool decided, bool observeReqTimeLimits = true, bool bFeasibilityCheck = false);

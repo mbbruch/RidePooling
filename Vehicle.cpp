@@ -71,51 +71,17 @@ void Vehicle::insert_targets(targetSet& target, map<locReq, set<locReq> >& src_d
     }
 }
 
-void Vehicle::setup_occupancy_changes(map<int, int>& changes, int currentTime) {
+int Vehicle::getOccupancyAt(int currentTime) {
+    int toReturn = 0;
     for (int i = 0; i < passengers.size(); i++) {
         if (passengers[i].scheduledOnTime < currentTime) {
-            updateOccupancyTracker(changes, passengers[i].scheduledOnTime, 0, 1);
+            toReturn++;
         }
         if (passengers[i].scheduledOffTime < currentTime) {
-            updateOccupancyTracker(changes, passengers[i].scheduledOffTime, 0, -1);
+            toReturn--;
         }
     }
-}
-
-void Vehicle::updateOccupancyTracker(map<int, int>& occupancyChanges, int time, int offset, int change)
-{
-    int val = occupancyChanges[time];
-
-    if (val == -change) {
-        occupancyChanges.erase(time);
-    }
-    else {
-        occupancyChanges[time] = val + change;
-    }
-    /*
-    auto it = occupancyChanges.find(time);
-    if(((*it).second+= change) == 0) {
-        occupancyChanges.erase(it);
-    }
-    if ((occupancyChanges[time] += change) == 0) {
-        occupancyChanges.erase(time);
-    }
-    */
-}
-
-int Vehicle::checkMaxOccupancy(const vector<Request>& psgrs) {
-    map<int, int> changes;
-    for (int i = 0; i < psgrs.size(); i++) {
-        updateOccupancyTracker(changes, psgrs[i].scheduledOnTime, 0, 1);
-        updateOccupancyTracker(changes, psgrs[i].scheduledOffTime, 0, -1);
-    }
-    int maxOccupancy = 0;
-    int occupancy = 0;
-    for (auto it = changes.begin(); it != changes.end(); it++) {
-        occupancy += it->second;
-        maxOccupancy = max(occupancy, maxOccupancy);
-    }
-    return maxOccupancy;
+    return toReturn;
 }
 
 void Vehicle::fixPassengerStatus(int nowTime) {
@@ -146,8 +112,8 @@ void Vehicle::fixPassengerStatus(int nowTime) {
 /// <param name="schedule"></param>
 /// <param name="decided"></param>
 void Vehicle::check_passengers(int nowTime, locReq stop, bool& exceeded, int& sumDelays, int& newOffset, int& newPickups, 
-    vector<pair<int, int>>& getOffPsngr, vector<pair<int, int>>& getOnsPsngr,
-    vector<Request>& schedule, map<int, int>& occupancyChanges, bool decided) {
+    vector<int>& getOffPsngr, vector<int>& getOnsPsngr,
+    vector<Request>& schedule, int& occupancy, bool decided) {
 
     for (int i = 0; i < passengers.size(); i++) {
         Request& req = passengers[i];
@@ -157,17 +123,17 @@ void Vehicle::check_passengers(int nowTime, locReq stop, bool& exceeded, int& su
                 return;
             }
             if (req.end == stop.first && req.unique == stop.second) {
+                occupancy--;
                 req.status = Request::requestStatus::droppedOff;
                 if (decided) {
                     req.scheduledOffTime = nowTime;
                     schedule.push_back(req);
                 }
-                updateOccupancyTracker(occupancyChanges, nowTime, newOffset, -1);
                 int addlDelay = nowTime - req.expectedOffTime;
                 if (addlDelay > 0) {
                     sumDelays += addlDelay;
                 }
-                getOffPsngr.push_back(make_pair(i,nowTime));
+                getOffPsngr.push_back(i);
             }
         }
         else if (req.status == Request::requestStatus::waiting) {
@@ -176,6 +142,10 @@ void Vehicle::check_passengers(int nowTime, locReq stop, bool& exceeded, int& su
                 return;
             }
             if (req.start == stop.first && req.unique == stop.second) {
+                if (++occupancy > max_capacity) {
+                    exceeded = true;
+                    return;
+                }
                 req.status = Request::requestStatus::onBoard;
                 int earliestArrivalAllowed = max(nowTime, req.reqTime);
                 int timeDiff = earliestArrivalAllowed - nowTime;
@@ -188,34 +158,18 @@ void Vehicle::check_passengers(int nowTime, locReq stop, bool& exceeded, int& su
                 if (decided) {
                     req.scheduledOnTime = nowTime;
                 }
-                updateOccupancyTracker(occupancyChanges, nowTime, newOffset, 1);
-                getOnsPsngr.push_back(make_pair(i,nowTime));
+                getOnsPsngr.push_back(i);
             }
         }
     }
-    newPickups = 0;
-    auto it = occupancyChanges.begin();
-    int occupancy = 0;
-    auto itEnd = occupancyChanges.end();
-    while (it != itEnd) {
-        occupancy += it->second;
-        if (it->second > 0 && occupancy > 1) {
-            newPickups += occupancy;
-        }
-        if (occupancy > max_capacity) {
-            exceeded = true;
-            return;
-        }
-        it++;
-    }
 }
 
-void Vehicle::reverse_passengers(vector<pair<int, int>>& getOffPsngr, vector<pair<int, int>>& getOnPsngr, map<int, int>& occupancyChanges, vector<Request>& schedule, int newOffset, bool decided) {
+void Vehicle::reverse_passengers(const vector<int>& getOffPsngr, const vector<int>& getOnPsngr, int& occupancy, vector<Request>& schedule, int newOffset, bool decided) {
 
     size_t offCnt = getOffPsngr.size();
-    for (auto it = getOffPsngr.begin(); it != getOffPsngr.end(); it++) {
-        passengers[it->first].status = Request::requestStatus::onBoard;
-        updateOccupancyTracker(occupancyChanges, it->second, newOffset, 1);
+    for (auto it = getOffPsngr.begin(); it != getOffPsngr.end(); ++it) {
+        passengers[*it].status = Request::requestStatus::onBoard;
+        occupancy++;
     }
     if (decided) {
         while (offCnt > 0) {
@@ -224,9 +178,9 @@ void Vehicle::reverse_passengers(vector<pair<int, int>>& getOffPsngr, vector<pai
         }
     }
     size_t onCnt = getOnPsngr.size();
-    for (auto it = getOnPsngr.begin(); it != getOnPsngr.end(); it++) {
-        passengers[it->first].status = Request::requestStatus::waiting;
-        updateOccupancyTracker(occupancyChanges, it->second, newOffset, -1);
+    for (auto it = getOnPsngr.begin(); it != getOnPsngr.end(); ++it) {
+        passengers[*it].status = Request::requestStatus::waiting;
+        occupancy--;
     }
 }
 

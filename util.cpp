@@ -379,3 +379,39 @@ std::string GetCurrentTimeForFileName()
     s.erase(12, 1);
     return s;
 }
+
+pair<int,int> getDisjunction(const uos& a, const uos& b) {
+    auto i = a.begin(), j = b.begin(), endA = a.end(), endB = b.end();
+    pair<int, int> toReturn(-1,-1); //first = -1 for fail, 0 for add to a, 1 for add to b
+    int diff = 0;
+    while (i != endA && j != endB) {
+        if (*j == *i) {
+            ++j;
+            ++i;
+        }
+        else if (*j < *i) {
+            if (++diff < 3) {
+                toReturn.first = 0;
+                toReturn.second = *j;
+                ++j;
+            }
+            else {
+                toReturn.first = -1;
+                return toReturn;
+            }
+        }
+        else {
+            if (++diff < 3) {
+                toReturn.first = 1;
+                toReturn.second = *i;
+                i++;
+            }
+            else {
+                toReturn.first = -1;
+                return toReturn;
+            }
+        }
+    }
+
+    return toReturn;
+}

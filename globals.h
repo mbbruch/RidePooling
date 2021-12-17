@@ -6,6 +6,8 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <boost/container/flat_set.hpp>
+#include <boost/container/flat_map.hpp>
 #include <utility>
 #include <cassert>
 #include <cstdint>
@@ -72,7 +74,8 @@ extern std::string baseOutDir;
 extern std::string outDir; 
 extern std::string logFile;
 
-typedef std::set<int> uos;
+typedef boost::container::flat_set<int> uos;
+typedef boost::container::flat_map<int, int> occupancyMap;
 
 struct sum_of_hashes
 {
@@ -132,7 +135,7 @@ public:
 
 
 typedef std::pair<int, int> locReq;
-typedef std::set<locReq> targetSet;
+typedef boost::container::flat_set<locReq> targetSet;
 typedef std::vector<pair<int, int>> stMap;
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;
