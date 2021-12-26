@@ -6,7 +6,6 @@
 #include "globals.h"
 #include <set>
 #include "Request.h"
-#include <boost/container/flat_map.hpp>
 
 using namespace std; 
 
@@ -44,5 +43,6 @@ public:
     void head_for(int node, int departureTimeFromNode);
     void update(int nowTime, vector<Request>& newRequests, int idx);
     void set_path(const vector<pair<int, int> >& path);
+    void append_path(const vector<pair<int, int> >& path);
     void finish_route(int idx, int nowTime);
 };

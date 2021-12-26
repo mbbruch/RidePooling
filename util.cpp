@@ -252,37 +252,34 @@ void update_requests_with_dist(FILE*& in) {
 void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
     int nowTime) {
     
+	int overTimeLimit = 0;
     for (auto iter = unserved.begin(); iter != unserved.end(); iter++) {
         iter->status = Request::requestStatus::waiting;
         iter->scheduledOnTime = -1;
         iter->allowedDelay = iter->allowedDelay + time_step;
         iter->allowedWait = iter->allowedWait + time_step;
+		
+		if (nowTime - iter->reqTime <= max_wait_sec) overTimeLimit++;
+/*
+        if (nowTime - iter->reqTime <= max_wait_sec) {
+            iter->status = Request::waiting;
+            iter->scheduledOnTime = -1;
+            requests.push_back(*iter);
+        } else {
+            unserved_dist += iter->shortestDist;
+        }
+*/
     }
+	
+	print_line(outDir, logFile, string_format("Unserved: %d (%d over time limit)", unserved.size(), overTimeLimit));
 }
 
 void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests, int nowTime) {
     int i = 0;
-    vector<int> hasTheTrip;
-    set<int, vector<int>> indices;
-    for (i = 0; i < vehicles.size(); i++) {
-        for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
-            if (vehicles[i].passengers[j].start == 2354 && vehicles[i].passengers[j].end == 2002) {
-                hasTheTrip.push_back(i);
-            }
-        }
-    }
-    if (hasTheTrip.size() > 0) {
-        int x = 5;
-        if (hasTheTrip.size() > 1) {
-            x = 6;
-        }
-    }
-
     #pragma omp parallel for default(none) private(i) shared(vehicles, nowTime, requests)
     for (i = 0; i < vehicles.size(); i++) {
         vehicles[i].update(nowTime, requests, i);
     }
-    int x = 5;
 }
 
 void finish_all(vector<Vehicle>& vehicles, vector<Request>& unserved) {
@@ -300,6 +297,7 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
     std::filesystem::create_directories(outDir + "Routes/");
     std::filesystem::create_directories(outDir + "Pickups/");
     std::filesystem::create_directories(outDir + "Misc/");
+    std::filesystem::create_directories(outDir + "Misc/Trips/");
     std::filesystem::create_directories(outDir + "Code/");
 	//std::filesystem::copy("/ocean/projects/eng200002p/mbruchon/Pooling/", outDir + "Code/");
 	//system(("cp -p /ocean/projects/eng200002p/mbruchon/RidePooling/*.* " + outDir + "Code/").c_str());
@@ -386,14 +384,14 @@ pair<int,int> getDisjunction(const uos& a, const uos& b) {
     int diff = 0;
     while (i != endA && j != endB) {
         if (*j == *i) {
-            ++j;
-            ++i;
+            j++;
+            i++;
         }
         else if (*j < *i) {
             if (++diff < 3) {
                 toReturn.first = 0;
                 toReturn.second = *j;
-                ++j;
+                j++;
             }
             else {
                 toReturn.first = -1;

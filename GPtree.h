@@ -18,7 +18,6 @@ struct GPTree
 	int root;
 	vector<int>id_in_node;//The leaf node number where the real node is
 	vector<vector<int> >car_in_node;//Used to hang border method KNN, record the number of each node boarding
-	vector<int>car_offset;//Used to record the distance between the car id and the node where the car is located
 	vector<coor>coordinate;
 	vector<int> node_areas;
 	vector<int> area_medoids;
@@ -55,8 +54,6 @@ struct GPTree
 	std::pair<int, int> find_path_simple(const int S, const int T, vector<int>& order);
 	int real_border_number(int x);
 	const void find_path_border(int x, int S, int T, vector<int>& v, int rev);
-
-	int begin[10000], end[10000];
 };
 
 extern GPTree treeCost;

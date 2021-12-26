@@ -8,6 +8,8 @@
 #include <unordered_set>
 #include <boost/container/flat_set.hpp>
 #include <boost/container/flat_map.hpp>
+#include <boost/unordered_set.hpp>
+#include <boost/unordered_map.hpp>
 #include <utility>
 #include <cassert>
 #include <cstdint>
@@ -75,7 +77,7 @@ extern std::string outDir;
 extern std::string logFile;
 
 typedef boost::container::flat_set<int> uos;
-typedef boost::container::flat_map<int, int> occupancyMap;
+//typedef std::set<int> uos;
 
 struct sum_of_hashes
 {
@@ -132,14 +134,14 @@ public:
     };
 };
 //typedef std::unordered_set<std::unordered_set<int>, MyHash> set_of_uos;
-
-
 typedef std::pair<int, int> locReq;
 typedef boost::container::flat_set<locReq> targetSet;
 typedef std::vector<pair<int, int>> stMap;
+typedef uos uosTBB;
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;
 typedef std::unordered_map<pair<int, int>, pair<int,int>, PairHash> pairs_to_pairs;
 typedef std::unordered_map<pair<int, int>, vector<int>, PairHash> pairs_to_vec;
 typedef std::unordered_set<pair<int, int>, PairHash> set_of_pairs;
 typedef std::unordered_set<uos, MyHash> uos_of_uos;
+//typedef boost::container::flat_set<uos> uos_of_uos;

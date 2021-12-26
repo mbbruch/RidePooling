@@ -8,6 +8,7 @@
 #include<ctime>
 #include<fstream>
 #include<algorithm>
+#include<atomic>
 #include<map>
 #include<chrono>
 #include "util.h"
@@ -98,6 +99,7 @@ void GPTree::read()
 	}
 	fclose(in);
 
+    print_line(outDir, logFile, "Reading node areas");
 
 	node_areas.clear();
 	node_areas.reserve(G.n);
@@ -115,6 +117,9 @@ void GPTree::read()
 		}
 	}
 	fclose(in);
+	
+    print_line(outDir, logFile, "Reading medoids");
+	
 	in = fopen(medoidFile.c_str(), "r");
 	int medoid = 0;
 	area_medoids.clear();
@@ -123,14 +128,18 @@ void GPTree::read()
 	}
 	fclose(in);
 
-	fclose(in);
+    print_line(outDir, logFile, "Reading forecasts");
 	in = fopen(forecastFile.c_str(), "r");
 	int time = 0; area = 0; int forecast5 = 0, forecast10 = 0, forecast15 = 0, forecast30 = 0;
 	area_forecasts.clear();
+	vector<pair<pair<int, int>, vector<int>>> vec_forecasts;
+	vec_forecasts.reserve(12 * 24 * 7 * area_medoids.size());
 	while (6 == fscanf(in, "%d %d %d %d %d %d\n", &time, &area, &forecast5, &forecast10, &forecast15, &forecast30)) {
 		vector<int> temp{ forecast5, forecast10, forecast15, forecast30 };
-		area_forecasts.try_emplace(make_pair(time, area),temp);
+		vec_forecasts.push_back(make_pair(make_pair(time, area), temp));
 	}
+	area_forecasts.insert(vec_forecasts.begin(), vec_forecasts.end());
+	vector<pair<pair<int, int>, vector<int>>>().swap(vec_forecasts);
 	fclose(in);
 
 	cout << "read over" << endl;
@@ -144,7 +153,6 @@ void GPTree::save()
 	printf("%d %d %d\n", root, node_tot, node_size);
 	save_vector(id_in_node);
 	save_vector_vector(car_in_node);
-	save_vector(car_offset);
 	for (int i = 0; i < node_size; i++)
 	{
 		printf("\n");
@@ -161,7 +169,6 @@ void GPTree::load()
 	scanf("%d%d%d", &root, &node_tot, &node_size);
 	load_vector(id_in_node);
 	load_vector_vector(car_in_node);
-	load_vector(car_offset);
 	node = new Node[G.n * 2 + 2];
 	for (int i = 0; i < node_size; i++)
 	{
@@ -204,9 +211,13 @@ void GPTree::init_dist_map() {
 	dist_map = hps::from_stream<std::vector<pair<int, int>>>(in_file);
 	int nCombos = max_node * (max_node - 1) / 2;
 	if (dist_map.size() < nCombos) {
+		dist_map.clear();
 		dist_map.reserve(max_node * (max_node - 1) / 2);
 		for (int i = 1; i <= max_node; i++) {
 			for (int j = i + 1; j <= max_node; j++) {
+				if (i == 2152 && j == 2962) {
+					int x = 5;
+				}
 				dist_map.push_back(search_cache(i - 1, j - 1));
 			}
 		}
@@ -354,7 +365,7 @@ void GPTree::build(int x, int f)//Recursive tree construction, current node x, l
 			vector<int>empty_vector;
 			empty_vector.clear();
 			car_in_node.clear();
-			for (int i = 0; i<G.n; i++)car_in_node.push_back(empty_vector);
+			//for (int i = 0; i<G.n; i++)car_in_node.push_back(empty_vector);
 		}
 	}
 }

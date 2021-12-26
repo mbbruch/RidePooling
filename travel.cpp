@@ -5,7 +5,6 @@
 #include <map>
 #include <set>
 #include <algorithm>
-#include <boost/container/flat_map.hpp>
 #include <omp.h>
 #include "util.h"
 #include "travel.h"
@@ -144,7 +143,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                 while (iterDst != (*itNode).second.end()) {
                     target.insert(*iterDst);
                     inserted.push_back(*iterDst);
-                    iterDst++;
+                    ++iterDst;
                 }
                 for (int i = 0; i < numReqs; i++) {
                     if (reqs[i]->start == node.first && reqs[i]->unique ==node.second && reqs[i]->status==Request::requestStatus::waiting) {
@@ -263,6 +262,9 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
         }
     }
 
+    if (reqs[0]->start == 2152 && reqs[0]->end == 2962) {
+        int x = 5;
+    }
     int beginTime = vehicle.getAvailableSince();
     vehicle.fixPassengerStatus(beginTime);
     vector<Request::requestStatus> pre_statuses;
@@ -279,25 +281,9 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
     ansSchedule.clear();
 
     vector<pair<int, locReq> > path;
-    path.reserve(numReqs * 2 + vehicle.get_num_passengers() + 1);
+    path.reserve(numReqs * 2 + 1);
     // path.push_back(vehicle.location); //TODO figure out why this isn't needed; probably because beginTime assumes next node???
     vector<Request> schedule;
-    
-    if (decided && now_time == 3600) {
-        int found = 0;
-        for (int i = 0; i < vehicle.passengers.size(); i++) {
-            if (vehicle.passengers[i].unique == 5) {
-                if (vehicle.passengers[i].status == Request::requestStatus::droppedOff) {
-                    int x = 5;
-                }
-                found++;
-            }
-        }
-        if (found == 3) {
-            std::string x("found");
-        }
-    }
-
     /* Set of: 
         time, 
         change in the car's # of passengers (-1 for dropoff, +1 for pickup), 
@@ -386,9 +372,6 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                         else {
                             for (auto it = timesToAdd.begin(); it != timesToAdd.end(); it++) {
                                 //car arrived early but must wait for pickups and/or dropoffs
-                                if (finalPath.back().first > *it) {
-                                    int x = 5;
-                                }
                                 finalPath.push_back(make_pair(*it, ansPath[m].second.first));
                             }
                         }
@@ -411,9 +394,6 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                     }
                 }
                 prevNode = node;
-            }
-            if (!finalPath.empty() && vehicle.getAvailableSince() == finalPath[0].first) {
-                string s("test");
             }
             vehicle.set_passengers(ansSchedule);
             vehicle.set_path(finalPath);

@@ -11,12 +11,12 @@ class TravelHelper {
 private:
 	int ansDelays;
 	int ansTravelled;
-	int ansCost;
 	int ansOffset;
 	vector<pair<int, locReq> > ansPath;
 	vector<Request> ansSchedule;
 public:
 
+	int ansCost;
 
 	void dfs(Vehicle& vehicle, Request* reqs[], int numReqs,
 		targetSet& target, map<locReq, set<locReq> >& src_dst,

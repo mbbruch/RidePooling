@@ -252,10 +252,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
     while (!this->scheduledPath.empty() || bLogStartingPoint) {
         int schedTime = bLogStartingPoint ? startOfThisUpdate : this->scheduledPath.front().first;
         int node = bLogStartingPoint ? this->location : this->scheduledPath.front().second;
-        if (schedTime == 944 && node == 8) {
-            int x = 5;
-        }
-        int test = true ? true : false;
         this->location = node;
         this->availableSince = schedTime;
         if (schedTime <= nowTime) {
@@ -330,6 +326,17 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
 }
 
 void Vehicle::set_path(const vector<pair<int, int>>& path) {
+    while (!this->scheduledPath.empty()) this->scheduledPath.pop();
+    auto it = path.begin();
+    this->scheduledPath.push(*it);
+    it++;
+    while (it != path.end()) {
+        if (this->scheduledPath.back() != *it && !(this->scheduledPath.back().first > it->first)) this->scheduledPath.push(*it);
+        it++;
+    }
+}
+
+void Vehicle::append_path(const vector<pair<int, int>>& path) {
     while (!this->scheduledPath.empty()) this->scheduledPath.pop();
     auto it = path.begin();
     this->scheduledPath.push(*it);

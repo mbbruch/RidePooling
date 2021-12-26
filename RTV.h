@@ -3,7 +3,6 @@
 #include <vector>
 #include <map>
 #include <set>
-#include "util.h"
 #include <unordered_set>
 #include <random>
 #include "RV.h"
@@ -18,29 +17,17 @@ class RTVGraph {
     public:
         uos requests;
         vector<int> dependentTrips;
-        bool ruledOut;
-        int tIdx;
-
         tripCandidate(const uos& reqs) {
             requests = reqs;
-            ruledOut = false;
-            tIdx = -1;
         };
 
-        tripCandidate(const uos& reqs, int idx) {
-            requests = reqs;
-            ruledOut = false;
-            tIdx = idx;
-        };
         tripCandidate(const tripCandidate& toCopy) {
             requests = toCopy.requests;
             dependentTrips = toCopy.dependentTrips;
-            ruledOut = toCopy.ruledOut;
-            tIdx = toCopy.tIdx;
         };
     };
 
-    inline static vector<vector<tripCandidate>> allPotentialTrips;
+    inline static std::vector<std::vector<tripCandidate>> allPotentialTrips;
 
 
     /* WHAT WE NEED:
@@ -83,13 +70,16 @@ class RTVGraph {
     int getTIdx(const uos& trip);
 
     void add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost);
+    void add_edge_trip_vehicle(int tIdx, int vIdx, int cost);
     void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
-    void build_single_vehicles(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, 
+    void build_single_vehicles(vector<Request>& requests, vector<Vehicle>& vehicles, 
         const map<int, int>& vehIDToVehIdx, int tripSize,
-        const map<int, int>& adjustedTripIdxes,
-        const std::vector<std::set<int>>& prevInclusions, std::vector<std::set<int>>& theseInclusions);
-    void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, RVGraph* rvGraph, vector<Request>& requests);
+        const map<int, int>& adjustedTripIdxes, std::vector<int>& addedTrips,
+        const std::vector<std::pair<int, uos>>& prevInclusions, std::vector<std::pair<int, uos>>& theseInclusions);
 
+    void serialize_current_combos();
+    void deserialize_current_combos();
+    void deserialize_valid_trips();
     void sort_edges();
 
     void greedy_assign_same_trip_size(

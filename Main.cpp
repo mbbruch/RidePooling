@@ -31,18 +31,41 @@ int main(int argc, char* argv[]) {
     setupOutfiles(outDir, outFilename);
     //max_capacity = atoi(argv[4]);
 
+    std::vector<int> test(10000000,5);
+    std::string testFile = baseInDir + city +"test_set.log";    
+    std::ofstream out_file(testFile, std::ofstream::binary);
+    hps::to_stream(test, out_file);
+    out_file.close();
+    std::ifstream in_file(testFile, std::ofstream::binary);
+    auto parsed = hps::from_stream<std::vector<int>>(in_file);
+ //   assert(parsed == test);
+ //   std::ofstream out_file(testFile, std::ofstream::binary);
+ //   hps::to_stream(test, out_file);
+//    for(int i = 0; i < 100; i++) hps::to_stream(test, out_file);
+
+ //   std::ifstream in_file(testFile, std::ifstream::binary);
+  //  std::vector<int> test2 = hps::from_stream<std::vector<int>>(in_file);
+
+
+    std::vector<int> data({ 22, 333, -4444 });
+
+    std::string serialized = hps::to_string(data);
+    auto parsed2 = hps::from_string<std::vector<int>>(serialized);
+
+
     print_line(outDir, logFile, "Initializing GRBEnv");
     GRBEnv* env;
     try {
         env = new GRBEnv();
+		env->set(GRB_IntParam_OutputFlag, 1);
+		env->set(GRB_IntParam_LogToConsole, 0);
     }
     catch (GRBException& e) {
         print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
         print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
     }
 
-    env->set(GRB_IntParam_OutputFlag, 1);
-    env->set(GRB_IntParam_LogToConsole, 0);
+	omp_set_num_threads(6);
     //env->set(GRB_IntParam_Threads, 4);
     now_time = -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
@@ -66,6 +89,8 @@ int main(int argc, char* argv[]) {
     read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir, logFile, "Vehicles read in");
 
+    std::pair<int, int> asdf = treeCost.dist_map[0];
+
     bool hasMore = false;
     Request tail;
     vector<Request> requests;
@@ -73,7 +98,6 @@ int main(int argc, char* argv[]) {
     FILE* in = get_requests_file(reqFile.c_str());
     while (true) {
         auto beforeTime = std::chrono::system_clock::now();
-        utilization.clear();
         travel_time = 0;
         travel_max = 0;
         travel_cnt = 0;
@@ -181,7 +205,6 @@ int main(int argc, char* argv[]) {
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("RTV build time = %f", elapsed_seconds.count()));
 
-        delete RV;
 		beforeTime = std::chrono::system_clock::now();
 
         RTV->solve(env, vehicles, requests, unserved);
@@ -193,6 +216,7 @@ int main(int argc, char* argv[]) {
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Rebalancing time = %f", elapsed_seconds.count()));
 		
+        delete RV;
         delete RTV;
 
         clock_t tock = clock();
@@ -209,8 +233,7 @@ int main(int argc, char* argv[]) {
             }
         }
         for (int i = 0; i < carUtilization.size(); i++) {
-            if (carUtilization[i] == 0) continue;
-            print_line(outDir, logFile, string_format("Vehicles serving %d passengers: %d.", i+1, carUtilization[i]));
+            if (carUtilization[i] > 0) print_line(outDir, logFile, string_format("Vehicles serving %d passengers: %d.", i+1, carUtilization[i]));
         }
         if (!hasMore) {
             break;

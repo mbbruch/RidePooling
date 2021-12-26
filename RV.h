@@ -18,9 +18,7 @@ class RVGraph {
 
 public:
     map<int, map<int, int> > car_req_cost;
-    map<int, vector<pair<int, int> > > req_cost_car;
     unordered_map<int, int> req_nearest_car_node;
-    set_of_pairs req_car;
     int entries;
     RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests);
 
