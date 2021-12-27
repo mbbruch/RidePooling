@@ -26,8 +26,6 @@
 #include "util.h"
 using namespace std;
 
-RTVGraph* RTVGraph::TIdxComparable::rtvGraph;
-
 bool equal_to_sub(vector<int>& compared, vector<int>& origin, int excludeIdx) {
     auto iterCompared = compared.begin();
     auto iterOrigin = origin.begin();
@@ -55,37 +53,19 @@ int RTVGraph::addVehicleId(int vehicleId) {
 }
 
 void RTVGraph::add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost) {
-    int tIdx;
-    tIdx = getTIdx(reqsInTrip);
-    TIdxComparable tIdxComparable(tIdx);
+    int tIdx = getTIdx(reqsInTrip);
     #pragma omp critical (addetv2)
-    tIdx_vCostIdxes[tIdxComparable].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfCars(gen1), vIdx}));
+    tIdx_vCostIdxes[tIdx].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfCars(gen1), vIdx}));
     //#pragma omp critical (addetv3)
     vIdx_tIdxes[vIdx].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfTrips(gen2), tIdx}));
 }
 
 void RTVGraph::add_edge_trip_vehicle(int tIdx, int vIdx, int cost) {
-    TIdxComparable tIdxComparable(tIdx);
     #pragma omp critical (addetv2)
-    tIdx_vCostIdxes[tIdxComparable].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfCars(gen1), vIdx}));
+    tIdx_vCostIdxes[tIdx].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfCars(gen1), vIdx}));
     //#pragma omp critical (addetv3)
     vIdx_tIdxes[vIdx].push_back(pair<int, pair<int, int>>(cost, pair<int, int>{distribOfTrips(gen2), tIdx}));
 }
-
-bool RTVGraph::TIdxComparable::operator<(const TIdxComparable& other) const {
-    int size1 = rtvGraph->trips[tIdx].size();
-    int size2 = rtvGraph->trips[other.tIdx].size();
-    if (size1 > size2) {
-        return true;
-    }
-    else if (size1 == size2) {
-        return tIdx < other.tIdx;
-    }
-    else {
-        return false;
-    }
-}
-
 
 int RTVGraph::getTIdx(const uos& trip) {
     auto iter = trip_tIdx.find(trip);
@@ -163,7 +143,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
     const bool bSparseTwo = (!bFullyConnectedVeh) && (sparsity < 0.8);
     const bool bSparseThree =  (!bFullyConnectedVeh) && (sparsity < 0.001);
     const bool bTesting = true;
-    map<int, int> adjustedTripIdxes;
+    unordered_map<int, int> adjustedTripIdxes;
     auto time2 = std::chrono::system_clock::now();
     int travelCounter = 0;
     int lastSizeSize = requests.size();
@@ -715,7 +695,7 @@ void RTVGraph::serialize_current_combos() {
     out_tv.close();
     map<TIdxComparable, vector<pair<int, pair<int, int>> > >().swap(tIdx_vCostIdxes);
     std::string vtCombosFile = outDir + "Misc/Trips/vtCombos.hps";
-    std::ofstream out_vt(tvCombosFile, std::ofstream::binary | std::ios_base::app);
+    std::ofstream out_vt(vtCombosFile, std::ofstream::binary | std::ios_base::app);
     hps::to_stream(vIdx_tIdxes, out_vt);
     out_vt.close();
     vector<vector<pair<int, pair<int, int>> > >().swap(vIdx_tIdxes);
@@ -723,12 +703,12 @@ void RTVGraph::serialize_current_combos() {
 
 void RTVGraph::deserialize_current_combos() {
     std::string tvCombosFile = outDir + "Misc/Trips/tvCombos.hps";
-    if (!std::filesystem::exists(tvCombosFile)) {
+    if (std::filesystem::exists(tvCombosFile)) {
         std::ifstream in_tv(tvCombosFile, std::ofstream::binary);
         tIdx_vCostIdxes = hps::from_stream <std::map<TIdxComparable, vector<pair<int, pair<int, int>>>>>(in_tv);
     }
     std::string vtCombosFile = outDir + "Misc/Trips/vtCombos.hps";
-    if (!std::filesystem::exists(vtCombosFile)) {
+    if (std::filesystem::exists(vtCombosFile)) {
         std::ifstream in_tv(vtCombosFile, std::ofstream::binary);
         vIdx_tIdxes = hps::from_stream<std::vector<std::vector<std::pair<int, std::pair<int, int>>>>>(in_tv);
     }
@@ -823,8 +803,6 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
     numRequests = requests.size();
     numTrips = 0;
     numVehicles = 0;
-
-    TIdxComparable::rtvGraph = this;
 
     auto thisTime = std::chrono::system_clock::now();
     build_potential_trips(rvGraph, requests, vehicles);
@@ -1327,7 +1305,7 @@ void RTVGraph::prune() {
     for (auto iter = tIdx_vCostIdxes.begin(); iter != tIdx_vCostIdxes.end(); ++iter) {
         //tvCombos.insert(iter->second.begin(), iter->second.end());
         for (int j = 0; j < (*iter).second.size(); j++) {
-            tvCombos.emplace(std::pair<int, int>{(*iter).first.tIdx, (*iter).second[j].second.second}, (*iter).second[j].first); //{trip, vehicle}, cost
+            tvCombos.emplace(std::pair<int, int>{(*iter).first, (*iter).second[j].second.second}, (*iter).second[j].first); //{trip, vehicle}, cost
         }
     }
     for (int i = 0; i < vIdx_tIdxes.size(); i++) {
@@ -1360,7 +1338,7 @@ void RTVGraph::prune() {
         int tidx = (*iter).first.first;
         int vidx = (*iter).first.second;
         int cost = (*iter).second;
-        tIdx_vCostIdxes[TIdxComparable(tidx)].push_back(pair<int, pair<int, int>>{cost, pair<int, int>{0, vidx}});
+        tIdx_vCostIdxes[tidx].push_back(pair<int, pair<int, int>>{cost, pair<int, int>{0, vidx}});
         vIdx_tIdxes[vidx].push_back(pair<int, pair<int, int>>{cost, pair<int, int>{0, tidx}});
     }
 
@@ -1456,7 +1434,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
         auto iterTIdx = iterRV->second.begin();
         while (iterTIdx != iterRV->second.end()) {
             int tIdx = *iterTIdx;
-            vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[TIdxComparable(tIdx)];
+            vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[tIdx];
             for (int j = 0; j < vCostIdxes.size(); j++) {
                 constr += epsilon[tIdx][j];
             }
@@ -1473,19 +1451,19 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     int maxCostTrip = 0;
     vector<vector<pair<int, pair<int, int>> >::iterator> edgeIters, edgeEnds;
     for (auto iterTV = tIdx_vCostIdxes.begin(); iterTV != tIdx_vCostIdxes.end(); ++iterTV) {
-        if (tripSize > trips[iterTV->first.tIdx].size()) {
+        if (tripSize > trips[iterTV->first].size()) {
             greedy_assign_same_trip_size(
                 edgeIters, edgeEnds, tIdxes, assignedRIds, assignedVIdxes,
                 epsilon, tempLookupRtoT
             );
-            tripSize = trips[iterTV->first.tIdx].size();
+            tripSize = trips[iterTV->first].size();
             edgeIters.clear();
             edgeEnds.clear();
             tIdxes.clear();
         }
         edgeIters.push_back(iterTV->second.begin());
         edgeEnds.push_back(iterTV->second.end());
-        tIdxes.push_back(iterTV->first.tIdx); 
+        tIdxes.push_back(iterTV->first); 
         maxCostTrip = max(maxCostTrip, iterTV->second[iterTV->second.size() - 1].first);
     }
     greedy_assign_same_trip_size(
@@ -1498,7 +1476,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     GRBLinExpr objective = 0;
     // printf("Generating objective expression...\n");
     for (int tIdx = 0; tIdx < numTrips; tIdx++) {
-        vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[TIdxComparable(tIdx)];
+        vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[tIdx];
         int reqsInTrip = trips[tIdx].size();
         for (int vehIdx = 0; vehIdx < vCostIdxes.size(); vehIdx++) {
             objective += epsilon[tIdx][vehIdx] * (vCostIdxes[vehIdx].first - reqsInTrip * thisPenalty);

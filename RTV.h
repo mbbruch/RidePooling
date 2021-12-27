@@ -49,14 +49,7 @@ class RTVGraph {
 
     map<uos, int> trip_tIdx; // trip -> tIdx, reverse of vector "trips"
 
-    class TIdxComparable {
-    public:
-        static RTVGraph* rtvGraph;
-        int tIdx;
-
-        TIdxComparable(int tIdx) : tIdx(tIdx) {}
-        bool operator <(const TIdxComparable& other) const;
-    };
+    typedef int TIdxComparable;
 
     //---- these are edges of RTV graph ----
     map<int, set<int> > rId_tIdxes;
