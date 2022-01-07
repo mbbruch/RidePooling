@@ -4,12 +4,10 @@
 #include <queue>
 #include <deque>
 #include <vector>
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 #include <boost/container/flat_set.hpp>
-#include <boost/container/flat_map.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
 #include <utility>
 #include <cassert>
 #include <cstdint>
@@ -28,9 +26,12 @@ extern int travel_cnt;
 extern double travel_max;
 
 extern int max_vehicle;
+extern int vehicle_depot;
 
 static const int max_capacity = 2;
 static const int max_trip_size = 8;
+static const int fleet_size = 300;
+static const double cars_needed_per_trip_per_30 = 0.75;
 static const std::chrono::time_point startTime = std::chrono::system_clock::now();
 static const std::string baseDir = "C:/Code_Projects/RidePooling/";
 static const std::string city = "austin";
@@ -44,10 +45,11 @@ static const std::string nodeFile = baseInDir + city + ".co"; //A total of N lin
                                     //of the id node (but the input does not consider the id, only the order is read from 0 to n-1, the integer N is in the Edge file)
 static const std::string GPTreeFile = baseInDir + "GP_Tree.data";
 static const std::string DistMapFile = baseInDir + city + "_" + costs + "_dist_map.hps";
-static const std::string reqFile = baseInDir + "requests_with_dist.csv";//argv[1];
+static const std::string reqFile = baseInDir + "requests_with_dist_" + costs + ".csv";//argv[1];
 static const std::string vehFile = baseInDir + "vehicles.csv";//argv[2];
 static const std::string medoidFile = baseInDir + city + "_area_medoids.txt";
 static const std::string forecastFile = baseInDir + city + "_forecasts.txt";
+static const std::string cityForecastFile = baseInDir + city + "_forecast_total_30_max.txt";
 static const int numAreas = 17;
 static const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
 static const int Naive_Split_Limit = 33;//The sub-graph size is smaller than this value
@@ -108,7 +110,22 @@ public:
     };
 
 };
+class MyHash_Array3
+{
+public:
+    std::size_t operator()(const std::array<int,3>& s) const
+    {
+        // return std::accumulate(s.begin(), s.end(), std::hash<int>{}(0), sum_of_hashes());
+        // return std::hash<int>{}(std::accumulate(s.begin(), s.end(), 0));
+        size_t seed = 0;
+        //Combine the hash of the current vector with the hashes of the previous ones
+        hash_combine(seed, s[0]);
+        hash_combine(seed, s[1]);
+        hash_combine(seed, s[2]);
+        return seed;
+    };
 
+};
 
 template<typename T, typename Container = std::deque<T> >
 class iterable_queue : public std::queue<T, Container>
@@ -144,4 +161,8 @@ typedef std::unordered_map<pair<int, int>, pair<int,int>, PairHash> pairs_to_pai
 typedef std::unordered_map<pair<int, int>, vector<int>, PairHash> pairs_to_vec;
 typedef std::unordered_set<pair<int, int>, PairHash> set_of_pairs;
 typedef std::unordered_set<uos, MyHash> uos_of_uos;
+typedef std::unordered_set<std::pair<int,int>, PairHash> uos_of_uos2;
+typedef std::unordered_set<std::array<int,3>, MyHash_Array3> uos_of_uos3;
 //typedef boost::container::flat_set<uos> uos_of_uos;
+typedef std::vector<int> vecTBB;
+

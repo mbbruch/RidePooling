@@ -14,17 +14,19 @@ using namespace std;
 
 Vehicle::Vehicle() {
     timeToNextNode = 0;
-    available = true;
+    available = false;
     availableSince = -9999;
     wasIdle = true;
+    offline = true;
 }
 
 Vehicle::Vehicle(int location) {
     this->location = location;
     timeToNextNode = 0;
     availableSince = -9999;
-    available = true;
+    available = false;
     wasIdle = true;
+    offline = true;
 }
 
 bool Vehicle::getWasIdle() {
@@ -35,7 +37,7 @@ bool Vehicle::isAvailable() {
 }
 
 
-int Vehicle::getAvailableSince() {
+int Vehicle::getAvailableSince() const {
     return this->availableSince;
 }
 
@@ -43,7 +45,7 @@ void Vehicle::setAvailableSince(int time) {
     this->availableSince = time;
 }
 
-int Vehicle::get_location() {
+int Vehicle::get_location() const {
     return this->location;
 }
 
@@ -51,7 +53,7 @@ void Vehicle::set_location(int location) {
     this->location = location;
 }
 
-int Vehicle::get_num_passengers() {
+int Vehicle::get_num_passengers() const {
     return passengers.size();
 }
 
@@ -188,10 +190,13 @@ void Vehicle::set_passengers(vector<Request>& psngrs) {
     this->passengers = psngrs;
 }
 
-void Vehicle::head_for(int node, int departureTimeFromNode) {
+void Vehicle::clear_path() {
     while (!this->scheduledPath.empty()) {
         this->scheduledPath.pop();
     }
+}
+void Vehicle::head_for(int node, int departureTimeFromNode) {
+    clear_path();
     if (this->location == node) {
         this->scheduledPath.push(make_pair(departureTimeFromNode, node));
         return;
@@ -219,6 +224,7 @@ void Vehicle::head_for(int node, int departureTimeFromNode) {
 
 void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
     if (availableSince == -9999 && this->passengers.size() == 0 && this->scheduledPath.size() == 0) {
+        refresh_status(nowTime);
         return;
     }
     int counter = 0;
@@ -313,10 +319,7 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
         }
     }
     this->passengers = newPassengers;
-    this->wasIdle = this->availableSince < nowTime;
-    this->availableSince = max(this->availableSince, nowTime);
-    this->timeToNextNode = this->availableSince - nowTime;
-    this->available = this->availableSince < (nowTime + time_step);
+    refresh_status(nowTime);
     //map: time, node, req index, on or off
     std::map<int, std::vector<locReq>> onOffs;
     for (int i = 0; i < this->passengers.size(); i++) {
@@ -325,18 +328,14 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
     }
 }
 
-void Vehicle::set_path(const vector<pair<int, int>>& path) {
-    while (!this->scheduledPath.empty()) this->scheduledPath.pop();
-    auto it = path.begin();
-    this->scheduledPath.push(*it);
-    it++;
-    while (it != path.end()) {
-        if (this->scheduledPath.back() != *it && !(this->scheduledPath.back().first > it->first)) this->scheduledPath.push(*it);
-        it++;
-    }
+void Vehicle::refresh_status(int time) {
+    this->wasIdle = this->availableSince < time;
+    this->availableSince = (this->offline || (this->availableSince < 0 && this->passengers.size() ==0)) ? this->availableSince : max(this->availableSince, time);
+    this->timeToNextNode = this->availableSince - time;
+    this->available = this->offline ? false : this->availableSince < (time + time_step);
 }
 
-void Vehicle::append_path(const vector<pair<int, int>>& path) {
+void Vehicle::set_path(const vector<pair<int, int>>& path) {
     while (!this->scheduledPath.empty()) this->scheduledPath.pop();
     auto it = path.begin();
     this->scheduledPath.push(*it);

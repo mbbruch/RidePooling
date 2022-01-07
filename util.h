@@ -66,4 +66,4 @@ void load_map_intpair_int(map_of_pairs& h);
 void save_map_intpair_intpair(pairs_to_pairs& h, FILE* out);
 void load_map_intpair_intpair(pairs_to_pairs& h);
 
-pair<int, int> getDisjunction(const uos& a, const uos& b);
+void getDisjunction(const uos& a, const uos& b, pair<int, int>& toReturn);

@@ -52,7 +52,6 @@ int main(int argc, char* argv[]) {
     std::string serialized = hps::to_string(data);
     auto parsed2 = hps::from_string<std::vector<int>>(serialized);
 
-
     print_line(outDir, logFile, "Initializing GRBEnv");
     GRBEnv* env;
     try {
@@ -83,11 +82,14 @@ int main(int argc, char* argv[]) {
 	cout << " tree initialized" << endl;
 	print_ram(outDir,string_format("%d_initialized", now_time));
 
+
     print_line(outDir, logFile, "load_end");
     vector<Vehicle> vehicles;
     vehicles.reserve(max_vehicle);
     read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir, logFile, "Vehicles read in");
+
+    RTVGraph::rebalance_for_demand_forecasts(env, vehicles, std::vector<Request>(), 0);
 
     std::pair<int, int> asdf = treeCost.dist_map[0];
 
@@ -95,7 +97,14 @@ int main(int argc, char* argv[]) {
     Request tail;
     vector<Request> requests;
     vector<Request> unserved;
+
+    std::vector<Vehicle> beforesolveVeh;
+    std::vector<Request> beforesolveReq;
+    std::vector<Request> beforesolveUns;
+    std::vector<Vehicle> beforerebalance;
     FILE* in = get_requests_file(reqFile.c_str());
+    //FILE* in = get_requests_file(std::string(baseInDir + "requests_with_dist.csv").c_str());
+    //update_requests_with_dist(in);
     while (true) {
         auto beforeTime = std::chrono::system_clock::now();
         travel_time = 0;
@@ -119,6 +128,7 @@ int main(int argc, char* argv[]) {
                 int x = 5;
             }
         }
+
         print_line(outDir, logFile, string_format("Unserved: %d", unserved.size()));
         handle_unserved(unserved, requests, now_time);
         reqCounter.clear();
@@ -167,9 +177,45 @@ int main(int argc, char* argv[]) {
                 bool bDupeFound = true;
             }
         }
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() ==1 && vehicles[i].scheduledPath.size() > 0 && 
+                vehicles[i].scheduledPath.back().first == vehicles[i].passengers[0].expectedOffTime &&
+                vehicles[i].scheduledPath.back().first != vehicles[i].passengers[0].scheduledOffTime) {
+                int x = 5;
+            }
+        }
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() == 1 && vehicles[i].scheduledPath.size() > 0 &&
+                vehicles[i].passengers[0].expectedOffTime != vehicles[i].passengers[0].scheduledOffTime) {
+                int x = 5;
+            }
+        }
+        for (int i = 0; i < vehicles.size(); i++) {
+            for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
+                const int offTime = vehicles[i].passengers[j].scheduledOffTime;
+                bool bFound = false;
+                for (auto it = vehicles[i].scheduledPath.begin(); it != vehicles[i].scheduledPath.end(); it++) {
+                    if (offTime == it->first) {
+                        bFound = true;
+                        break;
+                    }
+                }
+                if (bFound == false) {
+                    int x = 5;
+                }
+            }
+            if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
+                int x = 5;
+            }
+        }
+        std::vector<Vehicle> beforeupdate = vehicles;
 
-        
         update_vehicles(vehicles, requests, now_time);
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
+                int x = 5;
+            }
+        }
         reqCounter.clear();
         for (int i = 0; i < requests.size(); i++) {
             reqCounter[requests[i].unique]++;
@@ -183,7 +229,7 @@ int main(int argc, char* argv[]) {
         std::string temp = string_format("Rebalancing time = %f", asdf.count());
 
 		std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
-        print_line(outDir,logFile,string_format("Preprocessing time = %f", elapsed_seconds.count()));
+        print_line(outDir,logFile,string_format("TOtal preprocessing time = %f", elapsed_seconds.count()));
 		beforeTime = std::chrono::system_clock::now();
         RVGraph *RV = new RVGraph(vehicles, requests);
 
@@ -206,16 +252,52 @@ int main(int argc, char* argv[]) {
         print_line(outDir,logFile,string_format("RTV build time = %f", elapsed_seconds.count()));
 
 		beforeTime = std::chrono::system_clock::now();
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
+                int x = 5;
+            }
+        }        
+
+        beforesolveVeh = vehicles;
+        beforesolveReq = requests;
+        beforesolveUns = unserved;
 
         RTV->solve(env, vehicles, requests, unserved);
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() == 1 && beforesolveVeh[i].get_num_passengers() == 1){
+                if (vehicles[i].passengers[0].unique == beforesolveVeh[i].passengers[0].unique &&
+                    vehicles[i].passengers[0].scheduledOnTime == beforesolveVeh[i].passengers[0].scheduledOnTime &&
+                    vehicles[i].passengers[0].scheduledOffTime != beforesolveVeh[i].passengers[0].scheduledOffTime) {
+                    int x = 5;
+                    RTV->solve(env, beforesolveVeh, requests, unserved);
+                }
+            }
+        }
+
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() == 1 && vehicles[i].scheduledPath.size() > 0 &&
+                vehicles[i].passengers[0].scheduledOnTime == vehicles[i].passengers[0].expectedOffTime && 
+                vehicles[i].passengers[0].expectedOffTime != vehicles[i].passengers[0].scheduledOffTime) {
+                int x = 5;
+            }
+        }
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
+                int x = 5;
+            }
+        }
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Solving time = %f", elapsed_seconds.count()));
-
+        beforerebalance = vehicles;
 		beforeTime = std::chrono::system_clock::now();
         RTV->rebalance(env, vehicles, unserved);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
         print_line(outDir,logFile,string_format("Rebalancing time = %f", elapsed_seconds.count()));
-		
+        for (int i = 0; i < vehicles.size(); i++) {
+            if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
+                int x = 5;
+            }
+        }
         delete RV;
         delete RTV;
 

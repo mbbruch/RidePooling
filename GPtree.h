@@ -21,7 +21,9 @@ struct GPTree
 	vector<coor>coordinate;
 	vector<int> node_areas;
 	vector<int> area_medoids;
+	int vehStartingPoint;
 	pairs_to_vec area_forecasts;
+	std::unordered_map<int, int> city_forecasts_max;
 	int node_tot, node_size;
 	Node *node;
 	double coor_dist(const coor& a, const coor& b);

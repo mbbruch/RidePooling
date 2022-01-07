@@ -179,12 +179,12 @@ FILE* get_requests_file(const char* file) {
 void read_vehicles(const char* file, vector<Vehicle>& vehicles) {
     vehicles.clear();
     printf("vehicle file = %s\n", file);
-    FILE *in = NULL;
+    FILE* in = NULL;
     in = fopen(file, "r");
     int loc;
     int num = 0;
     max_vehicle = 0;
-    while (num != EOF) {
+    while (num != EOF && max_vehicle <= fleet_size){
         num = fscanf(in, "%d\n", &loc);
         if (num != EOF) {
             vehicles.push_back(Vehicle(loc));
@@ -192,6 +192,7 @@ void read_vehicles(const char* file, vector<Vehicle>& vehicles) {
         }
     }
     fclose(in);
+    vehicle_depot = vehicles[0].get_location();
 }
 
 void setup_vehicles(int nCars, vector<Vehicle>& vehicles) {
@@ -218,6 +219,21 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
                 r.shortestDist = dist;
                 r.expectedOffTime = reqTime + ceil((double(r.shortestDist)) / velocity);
                 requests.push_back(r);
+                std::vector<int> order;
+                pair<int, int> result1 = treeCost.get_dist(start, end);
+                pair<int, int> result = treeCost.find_path(start - 1, end - 1, order);
+                order[0] += 1;
+                /*
+                print_line(outDir, logFile, string_format("%d, %d, %d, %d.", result1.first, result.first, result1.second, result.second));
+                
+                print_line(outDir, logFile, string_format("Request distance from %d to %d: %f miles (%f minutes).", r.start, r.end, result.second * 6.21371e-5, (double)(r.expectedOffTime - r.reqTime) / 60.0));
+                for (int i = 1; i < order.size(); i++) {
+                    order[i] += 1;
+                    int dist = treeCost.get_dist(order[i - 1], order[i]).second;
+                    print_line(outDir, logFile, string_format("     Order: %d to %d: %f miles.", dist * 6.21371e-5));
+                }
+                */
+                //print_line(outDir, logFile, string_format("Request distance: %d.", r.expectedOffTime - r.reqTime));
                 raw_dist += r.shortestDist;
                 total_reqs++;
                 these_reqs++;
@@ -236,7 +252,7 @@ void update_requests_with_dist(FILE*& in) {
     these_served_reqs = 0;
     int num = 0;
     std::ofstream ofs;
-    ofs.open(baseInDir + "requests_with_dist.csv", std::ofstream::out | std::ofstream::app);
+    ofs.open(baseInDir + "requests_with_dist_" + costs + ".csv", std::ofstream::out | std::ofstream::app);
     while (num != EOF) {
         num = fscanf(in, "%d,%d,%d, %d\n", &reqTime, &start, &end, &dist);
         if (num != EOF) {
@@ -276,7 +292,7 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
 
 void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests, int nowTime) {
     int i = 0;
-    #pragma omp parallel for default(none) private(i) shared(vehicles, nowTime, requests)
+    #pragma omp parallel for num_threads(omp_get_max_threads()) default(none) private(i) shared(vehicles, nowTime, requests)
     for (i = 0; i < vehicles.size(); i++) {
         vehicles[i].update(nowTime, requests, i);
     }
@@ -378,38 +394,37 @@ std::string GetCurrentTimeForFileName()
     return s;
 }
 
-pair<int,int> getDisjunction(const uos& a, const uos& b) {
+void getDisjunction(const uos& a, const uos& b, pair<int, int>& toReturn) {
     auto i = a.begin(), j = b.begin(), endA = a.end(), endB = b.end();
-    pair<int, int> toReturn(-1,-1); //first = -1 for fail, 0 for add to a, 1 for add to b
-    int diff = 0;
+    toReturn.first = -1;
+    int aNotB = 0;
+    int bNotA = 0;
     while (i != endA && j != endB) {
         if (*j == *i) {
-            j++;
-            i++;
+            ++j;
+            ++i;
         }
         else if (*j < *i) {
-            if (++diff < 3) {
+            if (++bNotA < 2) {
                 toReturn.first = 0;
                 toReturn.second = *j;
-                j++;
+                ++j;
             }
             else {
                 toReturn.first = -1;
-                return toReturn;
+                return;
             }
         }
         else {
-            if (++diff < 3) {
+            if (++aNotB < 2) {
                 toReturn.first = 1;
                 toReturn.second = *i;
-                i++;
+                ++i;
             }
             else {
                 toReturn.first = -1;
-                return toReturn;
+                return;
             }
         }
-    }
-
-    return toReturn;
+    }//first = -1 for fail, 0 for add to a, 1 for add to b; second: the thing to add
 }

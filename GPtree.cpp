@@ -8,7 +8,6 @@
 #include<ctime>
 #include<fstream>
 #include<algorithm>
-#include<atomic>
 #include<map>
 #include<chrono>
 #include "util.h"
@@ -133,15 +132,25 @@ void GPTree::read()
 	int time = 0; area = 0; int forecast5 = 0, forecast10 = 0, forecast15 = 0, forecast30 = 0;
 	area_forecasts.clear();
 	vector<pair<pair<int, int>, vector<int>>> vec_forecasts;
-	vec_forecasts.reserve(12 * 24 * 7 * area_medoids.size());
+	vec_forecasts.reserve(12 * 24 * area_medoids.size()); //*7 for Chicago
 	while (6 == fscanf(in, "%d %d %d %d %d %d\n", &time, &area, &forecast5, &forecast10, &forecast15, &forecast30)) {
 		vector<int> temp{ forecast5, forecast10, forecast15, forecast30 };
 		vec_forecasts.push_back(make_pair(make_pair(time, area), temp));
 	}
+	fclose(in);
 	area_forecasts.insert(vec_forecasts.begin(), vec_forecasts.end());
 	vector<pair<pair<int, int>, vector<int>>>().swap(vec_forecasts);
-	fclose(in);
 
+	in = fopen(cityForecastFile.c_str(), "r");
+	vector<std::pair<int,int>> vec_citywide;
+	vec_citywide.reserve(12 * 24); //*7 for Chicago
+	time = 0; forecast30 = 0;
+	while (2 == fscanf(in, "%d %d\n", &time, &forecast30)) {
+		vec_citywide.push_back(make_pair(time, forecast30));
+	}
+	city_forecasts_max.insert(vec_citywide.begin(), vec_citywide.end());
+	vector<pair<int,int>>().swap(vec_citywide);
+	fclose(in);
 	cout << "read over" << endl;
 	printf("read over\n");
 }
@@ -215,9 +224,6 @@ void GPTree::init_dist_map() {
 		dist_map.reserve(max_node * (max_node - 1) / 2);
 		for (int i = 1; i <= max_node; i++) {
 			for (int j = i + 1; j <= max_node; j++) {
-				if (i == 2152 && j == 2962) {
-					int x = 5;
-				}
 				dist_map.push_back(search_cache(i - 1, j - 1));
 			}
 		}

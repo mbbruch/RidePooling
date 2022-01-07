@@ -27,7 +27,9 @@ class RTVGraph {
         };
     };
 
-    inline static std::vector<std::vector<tripCandidate>> allPotentialTrips;
+	typedef std::vector<tripCandidate> tripsVec;
+
+    inline static std::vector<tripsVec> allPotentialTrips;
 
 
     /* WHAT WE NEED:
@@ -67,7 +69,7 @@ class RTVGraph {
     void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
     void build_single_vehicles(vector<Request>& requests, vector<Vehicle>& vehicles, 
         const map<int, int>& vehIDToVehIdx, int tripSize,
-        const map<int, int>& adjustedTripIdxes, std::vector<int>& addedTrips,
+        const unordered_map<int, int>& adjustedTripIdxes, std::vector<int>& addedTrips,
         const std::vector<std::pair<int, uos>>& prevInclusions, std::vector<std::pair<int, uos>>& theseInclusions);
 
     void serialize_current_combos();
@@ -88,7 +90,10 @@ public:
     RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>& requests);
 
     void rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, bool bEquityVersion = false);
-
+    void static update_unserved_from_rebalancing(vector<Request>& unserved, uos& newlyServed);
+    void static rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
+    void static rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
+    void static rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, int nowTime, bool bEquityVersion = false);
 	void prune();
     void solve(GRBEnv* env,
         vector<Vehicle>& vehicles, vector<Request>& requests,

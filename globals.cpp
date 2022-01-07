@@ -13,6 +13,7 @@ int travel_cnt;
 double travel_max;
 
 int max_vehicle;
+int vehicle_depot;
 
 std::string baseOutDir = baseDir + "Out/";
 std::string outDir;
@@ -27,7 +28,7 @@ extern const int velocity = 84; // 84 dm/s = 19 mph
 extern const int penalty = max_delay_sec*1000;
 extern const int max_v_per_req = 20;
 extern const int min_req_per_v = 20;
-extern const int cost_scale_factor = 1; //NOTE: this must be set to ONE when building dist_map the first time
+extern const int cost_scale_factor = 100; //NOTE: this must be set to ONE when building dist_map the first time
 
 extern const double pickupPenalty = 123.6025; //cents per pickup
 extern const double delayPenalty = 33.70264/60; //cents per second

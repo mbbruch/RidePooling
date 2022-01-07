@@ -93,18 +93,14 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
     int maxConnections = 0;
     set<pair<int, int>> vehConnex;
     map<int, int> vehIDToVehIdx;
-    bool bUnusedVehicle = false;
     std::vector<std::pair<int, uos>> prevInclusions;
     prevInclusions.reserve(nVeh);
     int addedToPrevInclusions = 0;
     for (int i = 0; i < nVeh; i++) {
         if (rvGraph->has_vehicle(i)) {
             int vIdx = addVehicleId(i);
-            if (vehicles[vIdx].getAvailableSince() == -9999) {
-                bUnusedVehicle = true;
-            }
             vehIDToVehIdx[i] = vIdx;
-            const map<int, int>& edges = rvGraph->get_vehicle_edges(i); //req, cost
+            const vector<std::pair<int, int>>& edges = rvGraph->get_vehicle_edges(i); //req, cost
             int nConnex = edges.size();
             if (nConnex > 1) {
                 prevInclusions.push_back(std::pair<int, uos>(i, uos()));
@@ -127,22 +123,21 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         }
     }
 
-    for (int m = 0; m < numVehicles; m++) ;
     allPotentialTrips[0].reserve(requests.size());
     int reqsAdded = 0;
     for (int i = 0; i < requests.size(); i++) {
         allPotentialTrips[0].push_back(tripCandidate(uos{ i }));
     }
 
-    serialize_current_combos(); 
+    serialize_current_combos();
 
     const bool bFullyConnectedVeh = fullyConnectedVeh > 0 ? true : false;
-    const double bFractionConnected = fullyConnectedVeh / nVeh;
+    const double bFractionConnected = fullyConnectedVeh / numVehicles;
     const double sparsity = totalConnections / (1.0 * (partlyConnectedVeh * nReq));
-    print_line(outDir, logFile, string_format("%d vehicles, %d requests, %d fully connected vehicles, %d most connected (%f), %d percent dense.", nVeh, nReq, fullyConnectedVeh, maxConnections, maxConnections * 100.0 / nReq, 100.0 * sparsity));
+    print_line(outDir, logFile, string_format("%d vehicles, %d requests, %d fully connected vehicles, %d most connected (%f), %f percent dense.", numVehicles, nReq, fullyConnectedVeh, maxConnections, maxConnections * 100.0 / nReq, 100.0 * sparsity));
     const bool bSparseTwo = (!bFullyConnectedVeh) && (sparsity < 0.8);
     const bool bSparseThree =  (!bFullyConnectedVeh) && (sparsity < 0.001);
-    const bool bTesting = true;
+    //const bool bTesting = true;
     unordered_map<int, int> adjustedTripIdxes;
     auto time2 = std::chrono::system_clock::now();
     int travelCounter = 0;
@@ -154,6 +149,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         if (allPotentialTrips[k - 2].size() < k) break;
         allPotentialTrips.push_back(vector<tripCandidate>{});
         auto startOfSizeK = std::chrono::system_clock::now();
+		bool bAltMethod = false;
         int completeCliques = 0;
         map_of_uos newTrips; //key: set of requests (union of two trips);                                      
         //value: indices within allPotentialTrips[k-2]
@@ -165,20 +161,23 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 sop.reserve(lastSizeSize * (lastSizeSize - 1) / 2);
                 print_line(outDir, logFile, std::string("sparse 2 space reserved"));
                 int vIdx2 = 0;
-                #pragma omp parallel for default(none) private(vIdx2) shared(sop, k, rvGraph)
+                //#pragma omp parallel for default(none) private(vIdx2) shared(sop, k, rvGraph)
                 for (vIdx2 = 0; vIdx2 < numVehicles; vIdx2++) {
                     auto itv2 = rvGraph->car_req_cost.find(vIds[vIdx2]);
                     if (itv2 == rvGraph->car_req_cost.end()) continue;
-
-                    vector<pair<int, int>> vPair;
+                    const vector<std::pair<int, int>>& thisVehVec = itv2->second;
+                    int thisSize = thisVehVec.size();
+                    std::vector<std::pair<int, int>> vPair;
                     vPair.reserve(itv2->second.size() * (itv2->second.size() - 1) / 2);
-                    map<int, int>::iterator i, j, end = (*itv2).second.end();
-                    for (i = (*itv2).second.begin(); i != end; ++i)
+                    int i, j = 0;
+                    std::pair<int, int> thisSet;
+                    for (i = 0; i < thisSize; i++)
                     {
-                        j = i;
-                        j++;
-                        for (; j != end; ++j)
-                            vPair.push_back(std::make_pair(i->first, j->first));
+                        thisSet.first = thisVehVec[i].first;
+                        for (j = i + 1; j < thisSize; j++) {
+                            thisSet.second = thisVehVec[j].first;
+                            vPair.push_back(thisSet);
+                        }
                     }
                     #pragma omp critical(insertTripPair)
                     sop.insert(vPair.begin(), vPair.end());
@@ -188,12 +187,12 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 std::vector<pair<uos, pair<int, uosTBB>>> allCombosOfTwo;
                 allCombosOfTwo.reserve(sop.size());
                 for (auto it = sop.begin(); it != sop.end(); ++it) {
-                    allCombosOfTwo.push_back(pair<uos, pair<int, uosTBB>>{uos{ it->first, it->second }, pair<int, uosTBB>{1, uosTBB{ it->first, it->second }}});
+                    uos thisSet{{ it->first, it->second }};
+                    allCombosOfTwo.push_back(pair<uos, pair<int, uosTBB>>{thisSet, pair<int, uosTBB>{1, thisSet}});
                 }
                 set_of_pairs().swap(sop);
                 newTrips.insert(allCombosOfTwo.begin(), allCombosOfTwo.end());
                 std::vector<pair<uos, pair<int, uosTBB>>>().swap(allCombosOfTwo);
-
                 print_line(outDir, logFile, std::string("sparse 2 section finished"));
             }
             else {
@@ -202,7 +201,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 allCombosOfTwo.reserve(lastSizeSize * (lastSizeSize - 1) / 2);
                 for (int i = 0; i < lastSizeSize; i++) {
                     for (int j = i + 1; j < lastSizeSize; j++) {
-                        allCombosOfTwo.push_back(pair<uos, pair<int, uosTBB>>{uos{ i, j }, pair<int, uosTBB>{1, uosTBB{ i,j }}});
+                        uos thisSet{ { i, j } };
+                        allCombosOfTwo.push_back(pair<uos, pair<int, uosTBB>>{thisSet, pair<int, uosTBB>{1, thisSet}});
                     }
                 }
                 newTrips.insert(allCombosOfTwo.begin(), allCombosOfTwo.end());
@@ -215,42 +215,46 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         else {
             if (bSparseThree && (k == 3)) {
                 print_line(outDir, logFile, std::string("Enumerating sparse 3"));
-                uos_of_uos sop;
+                uos_of_uos3 sop;
                 sop.reserve((lastSizeSize * (lastSizeSize - 1) * (lastSizeSize - 2) / 3) * sparsity * 2);
                 int vIdx = 0;
-                #pragma omp parallel for default(none) private(vIdx) shared(sop, k, rvGraph)
+                //#pragma omp parallel for default(none) private(vIdx) shared(sop, k, rvGraph)
                 for (vIdx = 0; vIdx < numVehicles; vIdx++) {
-                    auto it = rvGraph->car_req_cost.find(vIds[vIdx]);
+                    const auto it = rvGraph->car_req_cost.find(vIds[vIdx]);
                     if (it == rvGraph->car_req_cost.end()) continue;
-                    vector<uos> vUos;
-                    vUos.reserve(it->second.size() * (it->second.size() - 1) * (it->second.size() - 2) / 3);
-                    map<int, int>::iterator i, j, l, end = (*it).second.end();
-                    for (i = (*it).second.begin(); i != end; ++i)
-                    {
-                        j = i;
-                        j++;
-                        for (; j != end; ++j) {
-                            l = j;
-                            l++;
-                            for (; l != end; ++l)
-                                vUos.push_back(uos{ i->first, j->first, l->first });
+                    const vector<std::pair<int, int>>& thisVehVec = it->second;
+                    int thisSize = thisVehVec.size();
+                    std::vector<std::array<int,3>> vUos;
+                    vUos.reserve(thisSize * (thisSize - 1) * (thisSize - 2) / 3);
+                    int i, j, l = 0;
+                    std::array<int, 3> thisSet;
+                    for (i = 0; i < thisSize; ++i){
+                        thisSet[0] = thisVehVec[i].first;
+                        for (j = i+1; j < thisSize; ++j) {
+                            thisSet[1] = thisVehVec[j].first;
+                            for (l = j + 1; l < thisSize; ++l) {
+                                thisSet[2] = thisVehVec[l].first;
+                                vUos.push_back(thisSet);
+                            }
                         }
                     }
                     #pragma omp critical(insertTripPair2)
                     sop.insert(vUos.begin(), vUos.end());
-                    vector<uos>().swap(vUos);
+                    vector<std::array<int, 3>>().swap(vUos);
                 }
                 std::vector<pair<uos, pair<int, uosTBB>>> allCombosOfThree;
                 allCombosOfThree.reserve(sop.size());
                 for (auto it = sop.begin(); it != sop.end(); ++it) {
-                    auto itSop = it->begin();
-                    allCombosOfThree.push_back(pair<uos, pair<int, uosTBB>>{*it, pair<int, uosTBB>{0, uosTBB{ *itSop, *(++itSop), *(++itSop) }}}); //TODO: 0 or 1 here???
+                    uos thisSet{ {(*it)[0], (*it)[1], (*it)[2]} };
+                    allCombosOfThree.push_back(pair<uos, pair<int, uosTBB>>{thisSet, pair<int, uosTBB>{0, thisSet}}); //TODO: 0 or 1 here???
                 }
-                uos_of_uos().swap(sop);
+                uos_of_uos3().swap(sop);
                 newTrips.insert(allCombosOfThree.begin(), allCombosOfThree.end());
                 std::vector<pair<uos, pair<int, uosTBB>>>().swap(allCombosOfThree);
             }
-            else if (bTesting || (k >2 && lastSizeSize > 100000)) {
+            else if (2==5 && k >2 /*&& lastSizeSize > 100000 */&& !bFullyConnectedVeh) {
+/*				print_line(outDir, logFile, string_format("Enumerating potential %d-trips, sparse k>2 way.", k));
+				bAltMethod = true;
                 int m = 0;
                 std::set<std::pair<int, int>> allCombos;
                 //#pragma omp parallel for default(none) private(m) shared(k, newTrips, allCombos, adjustedTripIdxes)
@@ -262,20 +266,10 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                     {
                         j = i;
                         j++;
-                        for (; j != end; ++j)
-                            theseCombos.push_back(std::make_pair(*i, *j));
-                    }
-                    //#pragma omp critical(insertSetThree)
-                    allCombos.insert(theseCombos.begin(), theseCombos.end());
-                }
-                std::vector<std::pair<int, int>> allCombosVec(allCombos.begin(), allCombos.end());
-                std::set<std::pair<int, int>>().swap(allCombos);
-                #pragma omp parallel for default(none) private(m) shared(k, newTrips, allCombos, adjustedTripIdxes)
-                for (m = 0; m < allCombosVec.size(); m++) {
-                    auto itI = adjustedTripIdxes.find(allCombosVec[m].first);
-                    auto itJ = adjustedTripIdxes.find(allCombosVec[m].second);
+                        for (; j != end; ++j){
+							auto itI = adjustedTripIdxes.find(*i);
+							auto itJ = adjustedTripIdxes.find(*j);
                     if (itI == adjustedTripIdxes.end() || itJ == adjustedTripIdxes.end()) {
-                        int x = 5; 
                         continue;
                     }
                     const uos& trip1 = allPotentialTrips[k - 2][itI->second].requests;
@@ -300,6 +294,14 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                     it->second.insert({ itI->second, itJ->second });
                 }
             }
+					for (auto it = newTrips.begin(); it != newTrips.end(); )
+					{   //complete clique requirement: all k subsets of size k-1 must be in here
+						if (it->second.second.size() == k && it->second.first >= k * (k - 1) / 2) { ++it; }
+						else { newTrips.erase(it++); }
+					}
+                } 
+				*/
+            }
             /*
             When generating trips of size 3:
             Only need to look for pairwise combos of size=2 trips that have overlap = 1 request.
@@ -321,15 +323,17 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             for 12345 to work, 1234, 1235
             for 123456 to work: 1234, 1235, 1236
             */
-            print_line(outDir, logFile, string_format("Enumerating potential %d-trips.", k));
+			else{
+				print_line(outDir, logFile, string_format("Enumerating potential %d-trips, default way.", k));
             const int twoSmallerSize = allPotentialTrips[k - 3].size();
             auto adjustedTripEnd = adjustedTripIdxes.end();
             int m = 0;
-            #pragma omp parallel for default(none) private(m) shared(k, newTrips, adjustedTripEnd, adjustedTripIdxes)
+				#pragma omp parallel for default(none) private(m) shared(k, bSparseThree, twoSmallerSize, newTrips, adjustedTripEnd, adjustedTripIdxes)
             for (m = 0; m < twoSmallerSize; m++) {
                 const vector<int>& dependentTrips = allPotentialTrips[k - 3][m].dependentTrips;
                 int numDependentTrips = dependentTrips.size();
                 if (numDependentTrips < 2) continue;
+                pair<int, int> dj(-1,-1);
                 for (int i = 0; i < numDependentTrips; i++) {
                     auto itI = adjustedTripIdxes.find(dependentTrips[i]);
                     if (itI == adjustedTripEnd) continue;
@@ -340,8 +344,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                         if (itJ == adjustedTripEnd) continue;
                         int indexJ = itJ->second;
                         const uos& trip2 = allPotentialTrips[k - 2][indexJ].requests;
-                        pair<int, int> dj = getDisjunction(trip1, trip2);
-                        if (dj.first == -1) continue;
+                        getDisjunction(trip1, trip2, dj);
+							if (dj.first == -1) continue;
                         uos tripUnion = dj.first == 0 ? trip1 : trip2;
                         tripUnion.insert(dj.second);
                         if (bSparseThree && (k == 3)) {
@@ -350,7 +354,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                                 #pragma omp atomic
                                 (*it).second.first++;
                                 #pragma omp critical(updateThree2)
-                                (*it).second.second.insert({ indexI, indexJ });
+									(*it).second.second.insert({indexI, indexJ});
                             }
                         }
                         else {
@@ -360,11 +364,12 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                             #pragma omp atomic
                             it->first++;
                             #pragma omp critical(insertInto2nd)
-                            it->second.insert({ indexI, indexJ });
+								it->second.insert({indexI, indexJ});
                         }
                     }
                 }
             }
+        }
         }
         //put the pointers in the vector
 
@@ -375,7 +380,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         int newTripsSize = newTrips.size();
         int elementSize = 0;
 		vector<pair<const uos, pair<int, uosTBB>>*> elements;
-        if (k > 2) {
+		if (k > 2 && !bAltMethod) {
             for (auto it = newTrips.begin(); it != newTrips.end(); )
             {   //complete clique requirement: all k subsets of size k-1 must be in here
                 if (it->second.second.size() == k && it->second.first >= k * (k - 1) / 2) { ++it; }
@@ -387,6 +392,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 		for(auto it = newTrips.begin(); it != newTrips.end(); it++){
             elements.push_back(&(*it));
         }
+        int noVeh = 0;
         print_line(outDir, logFile, string_format("Enumerated potential %d-trips.", k));
         print_ram(outDir, string_format("%d_after_potential_trip_enumeration_%d", now_time, k));
         elementSize = elements.size();
@@ -409,8 +415,8 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 }
 
                 if (bVehicleIncludes == false) {
-					//#pragma omp atomic
-					//noVeh++;
+					#pragma omp atomic
+					noVeh++;
                     continue;
                 }
             }
@@ -448,7 +454,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 }
             }
         }
-        //print_line(outDir, logFile, string_format("%d elements had no vehicle", noVeh));
+        print_line(outDir, logFile, string_format("%d elements had no vehicle", noVeh));
         vector<pair<const uos, pair<int, uosTBB>>*>().swap(elements);
         map_of_uos().swap(newTrips);
         allPotentialTrips[k - 1].shrink_to_fit();
@@ -458,7 +464,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         for (int m = 0; m < prevInclusions.size(); m++) {
             theseInclusions.push_back(std::pair<int,uos>(prevInclusions[m].first,uos()));
         }
-        print_line(outDir, logFile, "Build_single_vehicles starting.");
+        print_line(outDir, logFile,  string_format("Build_single_vehicles starting for %d vehicles of prev size (%d of this size).", (int)prevInclusions.size(), (int)theseInclusions.size()));
         build_single_vehicles(requests, vehicles, vehIDToVehIdx, k, adjustedTripIdxes, addedTrips, prevInclusions, theseInclusions);
         theseInclusions.swap(prevInclusions);
         vector<std::pair<int, uos>>().swap(theseInclusions);
@@ -470,7 +476,6 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         int newIdx = 0;
         int m = 0;
         int sizeBeforeShrinking = allPotentialTrips[k - 1].size();
-        auto toCheckIt = allPotentialTrips[k - 1].begin();
         //When k-trips are invalidated, delete them (reducing # of links for k-1-trips)
         for (m = 0; m < sizeBeforeShrinking; m++) {
             if (addedTrips[m] == 1) {
@@ -479,12 +484,15 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             oldIdx++;
         }
 
+        print_line(outDir, logFile, "Adjusted trip idxes created.");
+				
         vector<tripCandidate>& toShrink = allPotentialTrips[k - 1];
         toShrink.erase(std::remove_if(toShrink.begin(), toShrink.end(),
             [&addedTrips, &toShrink](const tripCandidate& o) { return !addedTrips[&o - &*(toShrink.begin())]; }),
             toShrink.end());
         allPotentialTrips[k - 1].shrink_to_fit();
 
+        print_line(outDir, logFile, "allPotentialTrips[k-1] shrunk where no trips were found.");
         /* When building 3-trips, want to make a bimap between 2- & 3-trips
         * When 3-trips are invalidated, delete them (reducing # of links for 2-trips)
         * Then, in anticipation of 4-trips:
@@ -501,19 +509,17 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         *   etc.
         */
         //Erase removed k-trip dependencies from k-1-trips
-        for (int i = 0; i < allPotentialTrips[k - 2].size(); i++) { //
-            std::vector<int>& theseDependents = allPotentialTrips[k - 2][i].dependentTrips;
-            auto it = theseDependents.begin();
-            while ( it != theseDependents.end()) {
-                if (adjustedTripIdxes.find(*it) != adjustedTripIdxes.end()) { ++it; }
-                else { it = theseDependents.erase(it); }
-            }
-        }
-        //Remove k-1-trips with fewer than 2 k-trip dependencies
         int temp1 = allPotentialTrips[k - 2].size();
-        allPotentialTrips[k - 2].erase(std::remove_if(allPotentialTrips[k - 2].begin(), allPotentialTrips[k - 2].end(),
-            [](const tripCandidate& o) { return o.dependentTrips.size() < 0; }),
-            allPotentialTrips[k - 2].end());
+		int apt_i = 0;
+		//#pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(apt_i) shared(noVeh, prevInclusions, newTrips, elementSize, elements, requests, k, thisSizeCounter, vehConnex, rvGraph, treeCost, adjustedTripIdxes)
+        for (apt_i = 0; apt_i < allPotentialTrips[k - 2].size(); apt_i++) { //
+            std::vector<int>& theseDependents = allPotentialTrips[k - 2][apt_i].dependentTrips; 
+			theseDependents.erase(std::remove_if(theseDependents.begin(), theseDependents.end(),
+            [&adjustedTripIdxes](const int& o) { return adjustedTripIdxes.find(o) == adjustedTripIdxes.end(); }),
+            theseDependents.end());
+        }
+        print_line(outDir, logFile, "allPotentialTrips[k-2] orphaned dependencies removed.");
+        //Remove k-1-trips with fewer than 2 k-trip dependencies
         int temp2 = temp1 - allPotentialTrips[k - 2].size();
         allPotentialTrips[k - 2].erase(std::remove_if(allPotentialTrips[k - 2].begin(), allPotentialTrips[k - 2].end(),
             [](const tripCandidate& o) { return o.dependentTrips.size() < 2; }),
@@ -578,7 +584,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 
 void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>& vehicles,
     const map<int, int>& vehIDToVehIdx, int tripSize,
-    const map<int, int>& adjustedTripIdxes, std::vector<int>& addedTrips,
+    const unordered_map<int, int>& adjustedTripIdxes, std::vector<int>& addedTrips,
     const std::vector<std::pair<int,uos>>& prevInclusions, std::vector<std::pair<int, uos>>& theseInclusions) {
     if (tripSize < 2) return;
     if (allPotentialTrips.size() < tripSize) return;;
@@ -588,7 +594,7 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
 
     std::vector<std::pair<int, std::pair<int, int>>> allValidTripCosts;
     int m = 0;
-    #pragma omp parallel for default(none) private(m) schedule(guided) shared(allValidTripCosts, addedTrips, adjustedTripIdxes, requests, vehicles, vehIDToVehIdx, tripSize, treeCost, lastSizeVec, thisSizeVec, prevInclusions, theseInclusions)
+    //#pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(m) schedule(guided) shared(allValidTripCosts, addedTrips, adjustedTripIdxes, requests, vehicles, vehIDToVehIdx, tripSize, treeCost, lastSizeVec, thisSizeVec, prevInclusions, theseInclusions)
     for (m = 0; m < prevInclusions.size(); m++) {
         int vId = prevInclusions[m].first; //index into vehicles, not RTV vehicle indices
         const uos& carPrev = prevInclusions[m].second;
@@ -666,7 +672,7 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                     reqs[j] = &copiedRequests[j];
                 }
 
-                Vehicle& vehicle = vehicles[m];
+                Vehicle& vehicle = vehicles[vId];
                 TravelHelper th;
                 int cost = th.travel(vehicle, reqs, tripSize, false);
                 if (cost >= 0) {
@@ -689,28 +695,36 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
 }
 
 void RTVGraph::serialize_current_combos() {
-    std::string tvCombosFile = outDir + "Misc/Trips/tvCombos.hps";
-    std::ofstream out_tv(tvCombosFile, std::ofstream::binary | std::ios_base::app);
-    hps::to_stream(tIdx_vCostIdxes, out_tv);
-    out_tv.close();
-    map<TIdxComparable, vector<pair<int, pair<int, int>> > >().swap(tIdx_vCostIdxes);
-    std::string vtCombosFile = outDir + "Misc/Trips/vtCombos.hps";
-    std::ofstream out_vt(vtCombosFile, std::ofstream::binary | std::ios_base::app);
-    hps::to_stream(vIdx_tIdxes, out_vt);
-    out_vt.close();
-    vector<vector<pair<int, pair<int, int>> > >().swap(vIdx_tIdxes);
+    {
+        std::string tvCombosFile = outDir + "Misc/Trips/tvCombos.hps";
+        std::ofstream out_tv(tvCombosFile, std::ofstream::binary | std::ios_base::app);
+        hps::to_stream(tIdx_vCostIdxes, out_tv);
+        out_tv.close();
+        map<TIdxComparable, vector<pair<int, pair<int, int>> > >().swap(tIdx_vCostIdxes);
+    }
+    {
+        std::string vtCombosFile = outDir + "Misc/Trips/vtCombos.hps";
+        std::ofstream out_vt(vtCombosFile, std::ofstream::binary | std::ios_base::app);
+        hps::to_stream(vIdx_tIdxes, out_vt);
+        out_vt.close();
+        vector<vector<pair<int, pair<int, int>> > >().swap(vIdx_tIdxes);
+    }
 }
 
 void RTVGraph::deserialize_current_combos() {
-    std::string tvCombosFile = outDir + "Misc/Trips/tvCombos.hps";
-    if (std::filesystem::exists(tvCombosFile)) {
-        std::ifstream in_tv(tvCombosFile, std::ofstream::binary);
-        tIdx_vCostIdxes = hps::from_stream <std::map<TIdxComparable, vector<pair<int, pair<int, int>>>>>(in_tv);
+    {
+        std::string tvCombosFile = outDir + "Misc/Trips/tvCombos.hps";
+        if (std::filesystem::exists(tvCombosFile)) {
+            std::ifstream in_tv(tvCombosFile, std::ofstream::binary);
+            tIdx_vCostIdxes = hps::from_stream <std::map<TIdxComparable, vector<pair<int, pair<int, int>>>>>(in_tv);
+        }
     }
-    std::string vtCombosFile = outDir + "Misc/Trips/vtCombos.hps";
-    if (std::filesystem::exists(vtCombosFile)) {
-        std::ifstream in_tv(vtCombosFile, std::ofstream::binary);
-        vIdx_tIdxes = hps::from_stream<std::vector<std::vector<std::pair<int, std::pair<int, int>>>>>(in_tv);
+    {
+        std::string vtCombosFile = outDir + "Misc/Trips/vtCombos.hps";
+        if (std::filesystem::exists(vtCombosFile)) {
+            std::ifstream in_vt(vtCombosFile, std::ofstream::binary);
+            vIdx_tIdxes = hps::from_stream<std::vector<std::vector<std::pair<int, std::pair<int, int>>>>>(in_vt);
+        }
     }
 }
 
@@ -828,49 +842,43 @@ RTVGraph::RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>&
     print_line(outDir, logFile, string_format("Vehicle-specific RTV graph build time = %f.", elapsed_seconds.count()));
 }
 
-void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, bool bEquityVersion) {
-    vector<int> idleVIds;
-    for (int i = 0; i < vehicles.size(); i++) {
-        if (vehicles[i].get_num_passengers() == 0)  idleVIds.push_back(i);
-    }
-    /*
-    map<int, vector<pair<int, int>>> relocCosts;
-    set<int> servableUnserved;
-    for (int i = 0; i < idleVIds.size(); i++) {
-        for (int j = 0; j < unserved.size(); j++) {
-            Request* reqs[1];
-            reqs[0] = &unserved[j];
-            TravelHelper th;
-            int cost = th.travel(vehicles[idleVIds[i]], reqs, 1, false, false);
-            if (cost != -1) {
-                relocCosts[i].push_back(make_pair(j, cost));
-                servableUnserved.insert(j);
-            }
+void RTVGraph::update_unserved_from_rebalancing(vector<Request>& unserved, uos& newlyServed) {
+    std::vector<Request> stillUnserved;
+    if (unserved.size() - newlyServed.size() > 0) stillUnserved.reserve(unserved.size() - newlyServed.size());
+    for (int i = 0; i < unserved.size(); i++) {
+        if (newlyServed.find(i) == newlyServed.end()) {
+            stillUnserved.push_back(unserved[i]);
         }
     }
+    stillUnserved.swap(unserved);
+}
 
-    vector<int> reqIndices(servableUnserved.begin(), servableUnserved.end());
-    */
+void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved) {
+    vector<int> idleVIds;
     uos newlyServed;
+    for (int i = 0; i < vehicles.size(); i++) {
+        if (vehicles[i].get_num_passengers() == 0 && !vehicles[i].offline && vehicles[i].getAvailableSince() < now_time + time_step)  idleVIds.push_back(i);
+    }
     int assignedCnt = 0;
 
     int idleCnt = (int)idleVIds.size();
     int unservedCnt = (int)unserved.size();
     set<int> servableUnserved;
     if (idleCnt > 0 && unservedCnt > 0) {
+        int idleToDelete = idleCnt;
+        GRBVar** y = new GRBVar * [idleCnt];
+        GRBLinExpr* rEdgesCnt = new GRBLinExpr[unservedCnt];
+        for (int j = 0; j < unservedCnt; j++) {
+            rEdgesCnt[j] = 0;
+        }
         try {
             GRBModel model = GRBModel(*env);
-            GRBVar** y = new GRBVar * [idleCnt];
             for (int i = 0; i < idleCnt; i++) {
                 y[i] = model.addVars(unservedCnt, GRB_BINARY);
             }
 
             GRBLinExpr objective = 0;
             GRBLinExpr totalEdgesCnt = 0;
-            GRBLinExpr* rEdgesCnt = new GRBLinExpr[unservedCnt];
-            for (int j = 0; j < unservedCnt; j++) {
-                rEdgesCnt[j] = 0;
-            }
             for (int i = 0; i < idleCnt; i++) {
                 GRBLinExpr vEdgesCnt = 0;
                 bool bAdded = false;
@@ -941,6 +949,145 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
                     }
                 }
             }
+        }
+        catch (GRBException& e) {
+            print_line(outDir, logFile, string_format("Gurobi exception code in rebalancing 1: %d.", e.getErrorCode()));
+            print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
+        }
+        delete[] rEdgesCnt;
+        for (int i = 0; i < idleToDelete; i++) {
+            delete[] y[i];
+        }
+        delete[] y;
+    }
+    update_unserved_from_rebalancing(unserved, newlyServed);
+}
+
+void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved) {
+    std::vector<int> idleVIds;
+    uos newlyServed;
+    //Loosen definition of "idle" to those dropping off a passenger before the next time window
+    idleVIds.reserve(vehicles.size()); //this is reserving too much, but that's OK
+    for (int i = 0; i < vehicles.size(); i++) {
+        if (vehicles[i].offline || vehicles[i].getAvailableSince() >= now_time + time_step) continue;
+
+        if (vehicles[i].get_num_passengers() == 0) {
+            idleVIds.push_back(i);
+            continue;
+        }
+
+        bool bIdleDropoff = true;
+        for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
+            if (vehicles[i].passengers[j].scheduledOffTime >= now_time + time_step) {
+                bIdleDropoff = false;
+                break;
+            }
+        }
+        if (bIdleDropoff) idleVIds.push_back(i);
+    }
+    idleVIds.shrink_to_fit();
+
+    int idleCnt = (int)idleVIds.size();
+    int unservedCnt = (int)unserved.size();
+    int assignedCnt = 0;
+    if (idleCnt > 0 && unservedCnt > 0) {
+        try {
+            GRBModel model2 = GRBModel(*env);
+            GRBVar** y = new GRBVar * [idleCnt];
+            for (int i = 0; i < idleCnt; i++) {
+                y[i] = model2.addVars(unservedCnt, GRB_BINARY);
+            }
+            GRBLinExpr* rEdgesCnt = new GRBLinExpr[unservedCnt];
+            for (int j = 0; j < unservedCnt; j++) {
+                rEdgesCnt[j] = 0;
+            }
+            GRBLinExpr objectiveMain = 0;
+            GRBLinExpr objectiveCnt = 0;
+            GRBLinExpr totalEdgesCnt = 0;
+
+            set<int> servableUnserved;
+            for (int i = 0; i < idleCnt; i++) {
+                GRBLinExpr vEdgesCnt = 0;
+                bool bAdded = false;
+                for (int j = 0; j < unservedCnt; j++) {
+                    Request* reqs[1];
+                    Request reqCopy = unserved[j];
+                    Vehicle vehCopy = vehicles[idleVIds[i]];
+                    reqs[0] = &unserved[j];
+                    TravelHelper th;
+                    int cost = th.travel(vehicles[idleVIds[i]], reqs, 1, false, false);
+                    if (cost != -1) {
+                        bAdded = true;
+                        objectiveMain += y[i][j] * cost;
+                        servableUnserved.insert(j);
+                    }
+                    else {
+                        y[i][j].set(GRB_DoubleAttr_UB, 0.0);
+                        objectiveMain += y[i][j] * 0;
+                    }
+                    objectiveCnt += y[i][j];
+                    totalEdgesCnt += y[i][j];
+                    vEdgesCnt += y[i][j];
+                    rEdgesCnt[j] += y[i][j];
+                }
+                if (bAdded) model2.addConstr(vEdgesCnt <= 1.0 + minimal);
+                else idleCnt--;
+            }
+            for (int j = 0; j < unservedCnt; j++) {
+                model2.addConstr(rEdgesCnt[j] <= 1.0 + minimal);
+            }
+            unservedCnt = servableUnserved.size();
+            model2.setObjective(objectiveCnt, GRB_MAXIMIZE);
+
+            model2.set("Threads", to_string(omp_get_max_threads() - 2));
+            model2.set("Method", "1");
+            model2.set("TimeLimit", "300.0");
+            model2.set("MIPGap", "0.001");
+            model2.set("NodeFileStart", "0.5");
+            std::string grbLogName = outDir + "GurobiLogs/" + "rebalance2_" + std::to_string(now_time);
+            model2.set("LogFile", grbLogName + ".txt");
+            model2.set("ResultFile", grbLogName + ".ilp");
+            model2.optimize();
+            double maxAssignments = model2.get(GRB_DoubleAttr_ObjVal);
+            model2.addConstr(totalEdgesCnt == maxAssignments);
+            model2.setObjective(objectiveMain, GRB_MINIMIZE);
+            model2.optimize();
+
+            vector<int> stillIdleVIDs;
+            newlyServed.clear();
+            assignedCnt = 0;
+            for (int i = 0; i < idleCnt; i++) {
+                bool idle = true;
+                for (int j = 0; j < unservedCnt; j++) {
+                    double val = y[i][j].get(GRB_DoubleAttr_X);
+                    if (val < 1.0 + minimal && val > 1.0 - minimal) {
+                        Request* reqs[1];
+                        reqs[0] = &unserved[j];
+                        TravelHelper th;
+                        if (-1 != th.travel(vehicles[idleVIds[i]], reqs, 1, true, false)) {
+                            for (auto it = vehicles[idleVIds[i]].passengers.begin(); it != vehicles[idleVIds[i]].passengers.end(); ++it) {
+                                if (it->unique == reqs[0]->unique) {
+                                    int delay = it->scheduledOffTime - it->expectedOffTime;
+                                    int wait = it->scheduledOnTime - it->reqTime;
+                                    if (delay > max_delay_sec || wait > max_wait_sec) {
+                                        it->allowedDelay = delay + max_delay_sec;
+                                        it->allowedWait = wait + max_wait_sec;
+                                    }
+                                    break;
+                                }
+                            }
+                            newlyServed.emplace(j);
+                            idle = false;
+                            assignedCnt++;
+                        }
+                        break;
+                    }
+                }
+                if (idle == true) {
+                    stillIdleVIDs.push_back(idleVIds[i]);
+                }
+            }
+
             delete[] rEdgesCnt;
             for (int i = 0; i < idleCnt; i++) {
                 delete[] y[i];
@@ -948,268 +1095,184 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
             delete[] y;
         }
         catch (GRBException& e) {
-            print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
+            print_line(outDir, logFile, string_format("Gurobi exception code in rebalancing 2: %d.", e.getErrorCode()));
             print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
         }
     }
+    update_unserved_from_rebalancing(unserved, newlyServed);
+}
 
-    std::vector<Request> stillUnserved;
-    stillUnserved.reserve(unservedCnt - assignedCnt);
-    for (int i = 0; i < unservedCnt; i++) {
-        if (newlyServed.find(i) == newlyServed.end()) {
-            stillUnserved.push_back(unserved[i]);
-        }
-    }
-    stillUnserved.swap(unserved);
-    std::vector<Request>().swap(stillUnserved);
-
-    //Loosen definition of "idle" to those dropping off a passenger before the next time window
-    std::vector<int>().swap(idleVIds);
-    idleVIds.reserve(vehicles.size() - assignedCnt); //this is reserving too much, but that's OK
-    for (int i = 0; i < vehicles.size(); i++) {
-        if (vehicles[i].get_num_passengers() == 0) {
-            idleVIds.push_back(i);
-            continue;
-        }
-
-        for (int j = 0; j < vehicles[i].get_num_passengers(); j++) {
-            if (vehicles[i].passengers[j].scheduledOffTime < now_time + time_step) {
-                idleVIds.push_back(i);
-                break;
-            }
-        }
-    }
-    idleVIds.shrink_to_fit();
-
-    idleCnt = (int)idleVIds.size();
-    unservedCnt = (int)unserved.size();
-
-    if (idleCnt > 0 && unservedCnt > 0) {
-        GRBModel model2 = GRBModel(*env);
-        GRBVar** y = new GRBVar * [idleCnt];
-        for (int i = 0; i < idleCnt; i++) {
-            y[i] = model2.addVars(unservedCnt, GRB_BINARY);
-        }
-
-        GRBLinExpr objectiveMain = 0;
-        GRBLinExpr objectiveCnt = 0;
-        GRBLinExpr totalEdgesCnt = 0;
-        GRBLinExpr* rEdgesCnt = new GRBLinExpr[unservedCnt];
-        for (int j = 0; j < unservedCnt; j++) {
-            rEdgesCnt[j] = 0;
-        }
-        set<int> servableUnserved;
-        for (int i = 0; i < idleCnt; i++) {
-            GRBLinExpr vEdgesCnt = 0;
-            bool bAdded = false;
-            for (int j = 0; j < unservedCnt; j++) {
-                Request* reqs[1];
-                Request reqCopy = unserved[j];
-                Vehicle vehCopy = vehicles[idleVIds[i]];
-                reqs[0] = &unserved[j];
-                TravelHelper th;
-                int cost = th.travel(vehicles[idleVIds[i]], reqs, 1, false, false);
-                if (cost != -1) {
-                    bAdded = true;
-                    objectiveMain += y[i][j] * cost;
-                    servableUnserved.insert(j);
-                }
-                else {
-                    y[i][j].set(GRB_DoubleAttr_UB, 0.0);
-                    objectiveMain += y[i][j] * 0;
-                }
-                objectiveCnt += y[i][j];
-                totalEdgesCnt += y[i][j];
-                vEdgesCnt += y[i][j];
-                rEdgesCnt[j] += y[i][j];
-            }
-            if (bAdded) model2.addConstr(vEdgesCnt <= 1.0 + minimal);
-            else idleCnt--;
-        }
-        for (int j = 0; j < unservedCnt; j++) {
-            model2.addConstr(rEdgesCnt[j] <= 1.0 + minimal);
-        }
-        unservedCnt = servableUnserved.size();
-        model2.setObjective(objectiveCnt, GRB_MAXIMIZE);
-
-        model2.set("Threads", to_string(omp_get_max_threads() - 2));
-        model2.set("Method", "1");
-        model2.set("TimeLimit", "300.0");
-        model2.set("MIPGap", "0.001");
-        model2.set("NodeFileStart", "0.5");
-        std::string grbLogName = outDir + "GurobiLogs/" + "rebalance2_" + std::to_string(now_time);
-        model2.set("LogFile", grbLogName + ".txt");
-        model2.set("ResultFile", grbLogName + ".ilp");
-        model2.optimize();
-        double maxAssignments = model2.get(GRB_DoubleAttr_ObjVal);
-        model2.addConstr(totalEdgesCnt == maxAssignments);
-        model2.setObjective(objectiveMain, GRB_MINIMIZE);
-        model2.optimize();
-
-        vector<int> stillIdleVIDs;
-        newlyServed.clear();
-        assignedCnt = 0;
-        for (int i = 0; i < idleCnt; i++) {
-            bool idle = true;
-            for (int j = 0; j < unservedCnt; j++) {
-                double val = y[i][j].get(GRB_DoubleAttr_X);
-                if (val < 1.0 + minimal && val > 1.0 - minimal) {
-                    Request* reqs[1];
-                    reqs[0] = &unserved[j];
-                    TravelHelper th;
-                    if (-1 != th.travel(vehicles[idleVIds[i]], reqs, 1, true, false)) {
-                        for (auto it = vehicles[idleVIds[i]].passengers.begin(); it != vehicles[idleVIds[i]].passengers.end(); ++it) {
-                            if (it->unique == reqs[0]->unique) {
-                                int delay = it->scheduledOffTime - it->expectedOffTime;
-                                int wait = it->scheduledOnTime - it->reqTime;
-                                if (delay > max_delay_sec || wait > max_wait_sec) {
-                                    it->allowedDelay = delay + max_delay_sec;
-                                    it->allowedWait = wait + max_wait_sec;
-                                }
-                                break;
-                            }
-                        }
-                        newlyServed.emplace(j);
-                        idle = false;
-                        assignedCnt++;
-                    }
-                    break;
-                }
-            }
-            if (idle == true) {
-                stillIdleVIDs.push_back(idleVIds[i]);
-            }
-        }
-
-        delete[] rEdgesCnt;
-        for (int i = 0; i < idleCnt; i++) {
-            delete[] y[i];
-        }
-        delete[] y;
-    }
-
-    if (unservedCnt - assignedCnt > 0) stillUnserved.reserve(unservedCnt - assignedCnt);
-    for (int i = 0; i < unservedCnt; i++) {
-        if (newlyServed.find(i) == newlyServed.end()) {
-            stillUnserved.push_back(unserved[i]);
-        }
-    }
-    stillUnserved.swap(unserved);
-    std::vector<Request>().swap(stillUnserved);
-
-    int unlocatedFreeVehicles = 0;
-    int totalFreeVehicles = 0;
+void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, int nowTime, bool bEquityVersion) {
     int totalDemand = 0;
     int areaCount = treeCost.area_medoids.size();
+    auto it = treeCost.city_forecasts_max.find(nowTime);
+    assert(it != treeCost.city_forecasts_max.end());
+    int city_demand_30max = it->second;
+    int carsNeeded = city_demand_30max * cars_needed_per_trip_per_30;
     vector<int> area_demand(areaCount, 0);
     vector<double> scaled_demand(areaCount, 0.0);
     vector<double> area_rewards(areaCount, 0.0);
     vector<int> area_shortages(areaCount, 0);
-    vector<int> area_vehicles(areaCount, 0);
     //Count forecasted demand and unserved trips
     for (int i = 0; i < unserved.size(); i++) {
-        if (newlyServed.find(i) != newlyServed.end()) continue;
         int thisArea = treeCost.node_areas[unserved[i].start - 1];
         area_shortages[thisArea - 1]++;
     }
     for (int i = 0; i < areaCount; i++) {
-        auto it = treeCost.area_forecasts.find(make_pair(now_time, i + 1));
+        auto it = treeCost.area_forecasts.find(make_pair(nowTime, i + 1));
         if (it == treeCost.area_forecasts.end()) continue;
         const vector<int>& thisForecast = it->second;
         area_demand[i] = thisForecast[3] + area_shortages[i]; //30-minute forecast
         totalDemand += area_demand[i];
     }
+    carsNeeded = max(carsNeeded, (int)ceil(totalDemand * cars_needed_per_trip_per_30));
+    int carsNotNeeded = vehicles.size() - carsNeeded;
     //Count available cars
-    idleVIds.clear();
+    int unlocatedFreeVehicles = 0;
+    int totalFreeVehicles = 0;
+    // carsNotNeeded > offlineCars: exclude offline cars from optimization, bring some more offline, send to depot
+    // carsNotNeeded == offlineCars: do nothing: exclude offline cars from optimization, don't bring any more offline 
+    // carsNotNeeded < offlineCars: include all that are en route to home, plus (offline - notneeded) that are at home. these may get routed to specific neighborhoods
+    // to mark as offline: available == false, no passengers, availableSince = nowTime + time_step
+    int offlineDepot = 0;
+    int offlineEnRoute = 0;
+    for (int i = 0; i < vehicles.size(); i++) {
+        if (vehicles[i].offline == true) {
+            if (vehicles[i].get_location() == vehicle_depot) { offlineDepot++; }
+            else { offlineEnRoute++; }
+        }
+    }
+    const int toBringOnline = offlineEnRoute + offlineDepot - carsNotNeeded;
+    int toBringOnlineCounter = toBringOnline;
+    enum vehStatus { UNINITIALIZED, ONLINE_IDLE, OFFLINE_DEPOT, OFFLINE_ENROUTE };
+    std::vector<std::pair<int, vehStatus>> idleVehIDs;
+    std::vector<std::pair<int, vehStatus>> offlineDepotVIds;
+    std::vector<std::pair<int, vehStatus>> offlineEnrouteVIds;
+    idleVehIDs.reserve(std::count_if(vehicles.begin(), vehicles.end(), [&nowTime](const Vehicle& v) {
+        return ((!v.offline || (v.offline && v.get_location() != vehicle_depot)) && !(v.get_num_passengers()>0 && !(v.scheduledPath.size() > 0 && v.scheduledPath.back().first >= nowTime + time_step))); }));
+    offlineDepotVIds.reserve(std::count_if(vehicles.begin(), vehicles.end(), [&nowTime](const Vehicle& v) {
+        return (v.offline && v.get_location() == vehicle_depot && v.getAvailableSince() == -9999 && !(v.get_num_passengers() > 0 && !(v.scheduledPath.size() > 0 && v.scheduledPath.back().first >= nowTime + time_step))); }));
     for (int i = 0; i < vehicles.size(); i++) {
         if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
-            int  x = 5;
+            int x = 5;
         }
-        if (!vehicles[i].isAvailable() || 
-            (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.back().first >= now_time + time_step)) continue;
+        if (vehicles[i].get_num_passengers() > 0 && (vehicles[i].scheduledPath.size() > 0 && vehicles[i].scheduledPath.back().first >= nowTime + time_step)) continue;
 
-        idleVIds.push_back(i);
-        totalFreeVehicles++;
-        if (vehicles[i].getAvailableSince() == -9999 && vehicles[i].get_num_passengers() == 0) {
-            unlocatedFreeVehicles++;
+        if (vehicles[i].offline == true) {
+            if (vehicles[i].get_location() == vehicle_depot) {
+                if (vehicles[i].getAvailableSince() == -9999) {
+                    if (toBringOnlineCounter-- > 0) offlineDepotVIds.push_back(make_pair(i, vehStatus::UNINITIALIZED));
+                }
+                else {
+                    if (toBringOnlineCounter-- > 0) offlineDepotVIds.push_back(make_pair(i, vehStatus::OFFLINE_DEPOT));
+                }
+            }
+            else {
+                if (toBringOnline > 0) idleVehIDs.push_back(make_pair(i, vehStatus::OFFLINE_ENROUTE));
+            }
         }
         else {
-            int thisArea = -1;
-            if (vehicles[i].get_num_passengers() == 0) {
-                thisArea = treeCost.node_areas[vehicles[i].get_location() - 1];
-            }
-            else if(vehicles[i].scheduledPath.back().first < now_time + time_step) {
-                thisArea = treeCost.node_areas[vehicles[i].scheduledPath.back().second - 1];
-            }
-            area_vehicles[thisArea - 1]++;
+            totalFreeVehicles++;
+            idleVehIDs.push_back(make_pair(i, vehStatus::ONLINE_IDLE));
         }
     }
-    //Enough unrestricted vehicles OR no free vehicles to relocate
-    if (unlocatedFreeVehicles >= totalDemand || unlocatedFreeVehicles == totalFreeVehicles) {
-        return;
-    }
+
     //Scale demand down if the forecast is larger than available vehicles
-    double scaler = (totalFreeVehicles - unlocatedFreeVehicles) * 1.0 / (totalDemand - unlocatedFreeVehicles);
+    double scaler = 1.0; // (totalFreeVehicles - unlocatedFreeVehicles) * 1.0 / (totalDemand - unlocatedFreeVehicles);
     bool scaleDown = scaler < 1 && scaler > 0;
     for (int i = 0; i < scaled_demand.size(); i++) {
         scaled_demand[i] = scaleDown ? static_cast<double>(area_demand[i] * 1.0 * scaler) : static_cast<double>(area_demand[i]);
         area_rewards[i] = bEquityVersion ? 1.0 / scaled_demand[i] : 1.0;
     }
 
-    for (int i = 0; i < area_shortages.size(); i++) {
-        area_shortages[i] = area_vehicles[i] - area_demand[i];
-    }
-    idleCnt = idleVIds.size();
-    try{
+    int idleCnt = idleVehIDs.size();
+    try {
         GRBModel model3 = GRBModel(*env);
-        GRBVar** y = new GRBVar * [idleCnt+1];
-        for (int i = 0; i < idleCnt; i++) {
-            y[i] = model3.addVars(areaCount, GRB_BINARY);
+        GRBVar** y = new GRBVar * [idleVehIDs.size()];
+        for (int i = 0; i < idleVehIDs.size(); i++) {
+            y[i] = model3.addVars(areaCount + 1, GRB_BINARY);
         }
+        GRBVar* z = model3.addVars(areaCount, GRB_INTEGER);
 
         GRBLinExpr objectiveMain = 0;
         GRBLinExpr objectiveCnt = 0;
-        GRBLinExpr totalEdgesCnt = 0;
-        GRBLinExpr* aEdgesCnt = new GRBLinExpr[areaCount];
-        GRBLinExpr* aEdgesReward = new GRBLinExpr[areaCount];
-        for (int j = 0; j < areaCount; j++) {
+        GRBLinExpr offlineDepotToOnlineCnt = 0;
+        GRBLinExpr offlineEnRouteToOnlineCnt = 0;
+        GRBLinExpr onlineToOfflineCnt = 0;
+        const int offlineDepotAreaIdx = areaCount;
+        GRBLinExpr* aEdgesCnt = new GRBLinExpr[areaCount + 1];
+        GRBVar* aEdgesReward = model3.addVars(areaCount + 1, GRB_CONTINUOUS);
+        //GRBLinExpr* aEdgesReward = new GRBLinExpr[areaCount + 1];
+        for (int j = 0; j < areaCount + 1; j++) {
             aEdgesCnt[j] = 0;
-            aEdgesReward[j] = 0;
+            //aEdgesReward[j] = 0;
         }
-        for (int i = 0; i < idleCnt; i++) {
-            int thisId = idleVIds[i];
+        for (int i = 0; i < idleVehIDs.size(); i++) {
+            int thisId = idleVehIDs[i].first;
             GRBLinExpr vEdgesCnt = 0;
             bool bAdded = false;
             int startNode = vehicles[thisId].get_num_passengers() == 0 ? vehicles[thisId].get_location() : vehicles[thisId].scheduledPath.back().second;
             int startArea = treeCost.node_areas[startNode - 1];
-            bool bUnlocated = vehicles[i].getAvailableSince() == -9999 && vehicles[i].get_num_passengers() == 0; 
-            for (int j = 0; j < areaCount; j++) {
+            for (int j = 0; j < areaCount + 1; j++) {
                 int cost = 0;
-                if (startArea != j + 1) {
-                    cost = treeCost.get_dist(startNode, treeCost.area_medoids[j]).first;
-                }
-                objectiveMain += y[i][j] * cost;
-                totalEdgesCnt += y[i][j];
                 vEdgesCnt += y[i][j];
                 aEdgesCnt[j] += y[i][j];
+                if (j == offlineDepotAreaIdx) {
+                    cost = treeCost.get_dist(startNode, vehicle_depot).first;
+                    onlineToOfflineCnt += aEdgesCnt[j];
+                }
+                else {
+                    if (startArea != j + 1) {
+                        cost = treeCost.get_dist(startNode, treeCost.area_medoids[j]).first;
+                    }
+                    if (idleVehIDs[i].second == vehStatus::OFFLINE_ENROUTE || idleVehIDs[i].second == vehStatus::OFFLINE_DEPOT) {
+                        offlineEnRouteToOnlineCnt += y[i][j];
+                    }
+                }
+                objectiveMain += y[i][j] * cost;
             }
             model3.addConstr(vEdgesCnt <= 1.0 + minimal);
         }
+        if (offlineDepotVIds.size() > 0) {
+            for (int j = 0; j < areaCount; j++) {
+                aEdgesCnt[j] += z[j];
+                offlineDepotToOnlineCnt += z[j];
+                int cost = treeCost.get_dist(vehicle_depot, treeCost.area_medoids[j]).first;
+                objectiveMain += z[j] * cost;
+            }
+        }
+        else {
+            for (int j = 0; j < areaCount; j++) {
+                z[j].set(GRB_DoubleAttr_UB, 0.0);
+            }
+        }
+        if (toBringOnline > 0) { //Need to take some online
+            model3.addConstr(offlineDepotToOnlineCnt <= min(toBringOnline,(int)offlineDepotVIds.size()));
+            model3.addConstr(offlineDepotToOnlineCnt >= 0);
+            model3.addConstr(offlineEnRouteToOnlineCnt + offlineDepotToOnlineCnt == min(toBringOnline, (int)(offlineDepotVIds.size() + offlineEnrouteVIds.size())));
+        }
+
+        if (toBringOnline < 0) {
+            //TODO: handle the cars that were offline and need to stay offline
+            model3.addConstr(onlineToOfflineCnt == min(-toBringOnline, (int)idleVehIDs.size())); //Need to send some to the offline depot
+        }
         for (int j = 0; j < areaCount; j++) {
             if (bEquityVersion) {
+                //Equity: maximize the minimum ratio of cars to demand
                 model3.addConstr(objectiveCnt <= aEdgesReward[j] + minimal);
-                model3.addConstr(aEdgesReward[j] <= aEdgesCnt[j]/area_demand[j] + minimal);
+                model3.addConstr(aEdgesReward[j] <= aEdgesCnt[j] / area_demand[j]*cars_needed_per_trip_per_30 + minimal);
                 model3.addConstr(aEdgesReward[j] <= 1.0 + minimal);
             }
             else {
                 //Efficiency: just serve as many as possible, at lowest cost
                 objectiveCnt += aEdgesReward[j];
-                model3.addConstr(aEdgesReward[j] <= area_demand[j] + minimal);
+                model3.addConstr(aEdgesReward[j] <= area_demand[j] * cars_needed_per_trip_per_30 + minimal);
                 model3.addConstr(aEdgesReward[j] <= aEdgesCnt[j] + minimal);
             }
         }
-        model3.setObjective(objectiveCnt, GRB_MAXIMIZE);
 
+        model3.setObjectiveN(objectiveCnt, 0, 2);
+        model3.setObjectiveN(objectiveMain, 1, 1);
         model3.set("Threads", to_string(omp_get_max_threads() - 2));
         model3.set("Method", "1");
         model3.set("TimeLimit", "300.0");
@@ -1220,49 +1283,116 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
         model3.set("ResultFile", grbLogName + ".ilp");
         model3.optimize();
 
-        double maxReward = model3.get(GRB_DoubleAttr_ObjVal);
-        model3.addConstr(totalEdgesCnt == maxReward);
-        model3.setObjective(objectiveMain, GRB_MINIMIZE);
-        model3.optimize();
-
-        assignedCnt = 0;
-        for (int i = 0; i < idleCnt; i++) {
-            int thisId = idleVIds[i];
-            if (vehicles[thisId].get_num_passengers() == 0 && vehicles[thisId].getAvailableSince() == -9999) continue;
-            for (int j = 0; j < areaCount; j++) {
+        /* TODO: handle routing of going offline or online cars, incl edge cases:
+            Assigned to go offline previous timestep, but still dropping off a passenger? (Not possible?)
+            Was already en route to a given medoid, don't stop just bc you're in the area now*/
+        int assignedCnt = 0;
+        for (int i = 0; i < idleVehIDs.size(); i++) {
+            int thisId = idleVehIDs[i].first;
+            //if (vehicles[thisId].get_num_passengers() == 0 && vehicles[thisId].getAvailableSince() == -9999) continue;
+            for (int j = 0; j < areaCount + 1; j++) {
                 double val = y[i][j].get(GRB_DoubleAttr_X);
                 if (val < 1.0 + minimal && val > 1.0 - minimal) {
-                    int startNode = vehicles[thisId].get_num_passengers() == 0 ? vehicles[thisId].get_location() : vehicles[thisId].scheduledPath.back().second;
+                    //Has passenger: look at end of scheduledPath, check if equal to area.
+                    // If it is, just keep going.
+                    // If it isn't, push onto scheduledPath.
+                    //Does not have passenger, has a scheduledPath: check if end of scheduled path is equal to area.
+                    //If it is, just keep going.
+                    //If it isn't, clear scheduled path then push onto it.
+                    int startNode = vehicles[thisId].scheduledPath.size() == 0 ? vehicles[thisId].get_location() : vehicles[thisId].scheduledPath.back().second;
                     int startArea = treeCost.node_areas[startNode - 1];
-                    if (startArea != j + 1) {
-                        assignedCnt++;
-                        int beginTime = vehicles[thisId].scheduledPath.size() == 0 ? vehicles[thisId].getAvailableSince() : vehicles[thisId].scheduledPath.back().first;
-                        int passedDist = 0;
-                        vector<pair<int, int> > finalPath;
-                        vector<int> order;
-                        treeCost.find_path(startNode - 1, treeCost.area_medoids[j] - 1, order);
-                        order[0] += 1;
-                        for (int m = 1; m < order.size(); m++) {
-                            order[i] += 1;
-                            passedDist += treeCost.get_dist(order[i - 1], order[i]).second;
-                            vehicles[thisId].scheduledPath.push(make_pair(beginTime + ceil(static_cast<double>(passedDist) / velocity * 1.0), order[i]));
+                    int destNode = -1;
+                    if (j == offlineDepotAreaIdx) {
+                        //needs to go to depot
+                        vehicles[thisId].offline = true;
+                        destNode = vehicle_depot;
+                        if (destNode == startNode) {
+                            break; //already headed where it needs to be
                         }
+                    }
+                    else {
+                        vehicles[thisId].offline = false;
+                        if (startArea == j + 1) {
+                            break; //already headed where it needs to be
+                        }
+                        else {
+                            destNode = treeCost.area_medoids[j];
+                        }
+                    }
+
+                    assignedCnt++;
+                    if (vehicles[thisId].get_num_passengers() == 0) vehicles[thisId].clear_path();
+                    int beginTime = (vehicles[thisId].get_num_passengers() == 0 || vehicles[thisId].scheduledPath.size() == 0) ? vehicles[thisId].getAvailableSince() : vehicles[thisId].scheduledPath.back().first;
+                    int passedDist = 0;
+                    vector<pair<int, int> > finalPath;
+                    vector<int> order;
+
+#pragma omp critical (findpath)
+                    treeCost.find_path(startNode - 1, destNode - 1, order);
+                    order[0] += 1;
+                    for (int m = 1; m < order.size(); m++) {
+                        order[m] += 1;
+                        passedDist += treeCost.get_dist(order[m - 1], order[m]).second;
+                        vehicles[thisId].scheduledPath.push(make_pair(beginTime + ceil(static_cast<double>(passedDist) / velocity * 1.0), order[m]));
                     }
                     break;
                 }
             }
         }
+        auto offlineIt = offlineDepotVIds.begin();
+        for (int j = 0; j < areaCount; j++) {
+            int val = round(z[j].get(GRB_DoubleAttr_X));
+            if (val == 0) continue;
+
+            int startNode = vehicle_depot;
+            int startArea = treeCost.node_areas[startNode - 1];
+            int destNode = treeCost.area_medoids[j];
+            vector<int> order;
+            vector<pair<int, int> > finalPath;
+            #pragma omp critical (findpath)
+            treeCost.find_path(startNode - 1, destNode - 1, order);
+
+            for(int k = 0; k < val; k++) {
+                assert(offlineIt != offlineDepotVIds.end());
+                if (offlineIt == offlineDepotVIds.end()) {
+                    assert(false);
+                    break;
+                }
+                int thisId = offlineIt->first;
+                ++offlineIt;
+                vehicles[thisId].offline = false;
+                vehicles[thisId].clear_path();
+                if (startArea == j + 1) {
+                    continue; //already headed where it needs to be
+                }
+                assignedCnt++;
+                int passedDist = 0;
+                int beginTime = vehicles[thisId].getAvailableSince();
+                for (int m = 1; m < order.size(); m++) {
+                    passedDist += treeCost.get_dist(order[m - 1]+1, order[m]+1).second;
+                    vehicles[thisId].scheduledPath.push(make_pair(beginTime + ceil(static_cast<double>(passedDist) / velocity * 1.0), order[m]+1));
+                }
+            }
+        }
 
         delete[] aEdgesCnt;
-        for (int i = 0; i < idleCnt; i++) {
+        delete[] aEdgesReward;
+        for (int i = 0; i < idleVehIDs.size(); i++) {
             delete[] y[i];
         }
         delete[] y;
+        delete[] z;
     }
     catch (GRBException& e) {
-        print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
+        print_line(outDir, logFile, string_format("Gurobi exception code in rebalancing 3: %d.", e.getErrorCode()));
         print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
     }
+}
+void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, bool bEquityVersion) {
+    int unservedCnt = unserved.size();
+    rebalance_for_pruning_fix(env, vehicles, unserved);
+    rebalance_for_finishing_cars(env, vehicles, unserved);
+    rebalance_for_demand_forecasts(env, vehicles, unserved, now_time, bEquityVersion);
 }
 
 void RTVGraph::sort_edges() {
@@ -1275,7 +1405,7 @@ void RTVGraph::sort_edges() {
     print_line(outDir, logFile, string_format("tIdx_vCostIdxes transform time = %f.", elapsed_seconds.count()));
     thisTime = std::chrono::system_clock::now();
     int i;
-#pragma omp parallel for private(i)
+    #pragma omp parallel for private(i) num_threads(omp_get_max_threads())
     for (i = 0; i < indices.size(); i++) {
         auto iter = tIdx_vCostIdxes.find(indices[i]);
         if (iter != tIdx_vCostIdxes.end()) {
@@ -1289,7 +1419,7 @@ void RTVGraph::sort_edges() {
     print_line(outDir, logFile, string_format("tIdx_vCostIdxes sorting time = %f.", elapsed_seconds.count()));
     thisTime = std::chrono::system_clock::now();
 
-#pragma omp parallel for private(i)
+    #pragma omp parallel for private(i) num_threads(omp_get_max_threads())
     for (i = 0; i < vIdx_tIdxes.size(); i++) {
         sort(vIdx_tIdxes[i].begin(), vIdx_tIdxes[i].end());
         vIdx_tIdxes[i].resize(min(static_cast<int>(vIdx_tIdxes[i].size()), min_req_per_v));
@@ -1318,7 +1448,7 @@ void RTVGraph::prune() {
     indices.reserve(tIdx_vCostIdxes.size());
     std::transform(begin(tIdx_vCostIdxes), end(tIdx_vCostIdxes), std::back_inserter(indices), [](auto const& pair) { return pair.first; });
     int i = 0;
-#pragma omp parallel for private(i)
+    #pragma omp parallel for private(i) num_threads(omp_get_max_threads())
     for (i = 0; i < indices.size(); i++) {
         auto iter = tIdx_vCostIdxes.find(indices[i]);
         if (iter != tIdx_vCostIdxes.end()) {
@@ -1328,7 +1458,7 @@ void RTVGraph::prune() {
     }
 
     i = 0;
-#pragma omp parallel for private(i)
+    #pragma omp parallel for private(i) num_threads(omp_get_max_threads())
     for (i = 0; i < vIdx_tIdxes.size(); i++) {
         vIdx_tIdxes[i].clear();
         vIdx_tIdxes[i].reserve(max_v_per_req + min_req_per_v);
@@ -1345,7 +1475,7 @@ void RTVGraph::prune() {
     map_of_pairs().swap(tvCombos);
 
     i = 0;
-#pragma omp parallel for private(i)
+    #pragma omp parallel for private(i) num_threads(omp_get_max_threads())
     for (i = 0; i < indices.size(); i++) {
         auto iter = tIdx_vCostIdxes.find(indices[i]);
         if (iter != tIdx_vCostIdxes.end()) {
@@ -1355,7 +1485,7 @@ void RTVGraph::prune() {
     std::vector<TIdxComparable>().swap(indices);
 
     i = 0;
-#pragma omp parallel for private(i)
+    #pragma omp parallel for private(i) num_threads(omp_get_max_threads())
     for (i = 0; i < vIdx_tIdxes.size(); i++) {
         vIdx_tIdxes[i].shrink_to_fit();
     }
@@ -1398,169 +1528,169 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
     print_line(outDir, logFile, string_format("RTV size trimmed from %d & %d -> %d & %d -> %d & %d in a total of %f seconds.",
         prevSize, prevSize2, sortedSize, sortedSize2, prunedSize, prunedSize2, elapsed_seconds.count()));
 
-    // printf("Defining variables...\n");
-    GRBModel model = GRBModel(*env);
-    GRBVar** epsilon = new GRBVar * [numTrips];
-    for (int i = 0; i < numTrips; i++) {
-        epsilon[i] = model.addVars(tIdx_vCostIdxes[i].size(), GRB_BINARY);
-    }
 
-    // default initial values
-    // printf("Initializing...\n");
-    std::map<int, std::map<int, int>> tempLookupRtoT;
-    for (int i = 0; i < numTrips; i++) {
-        for (int j = 0; j < tIdx_vCostIdxes[i].size(); j++) {
-            epsilon[i][j].set(GRB_DoubleAttr_Start, 0.0);
-            tempLookupRtoT[(tIdx_vCostIdxes[i])[j].second.second][i] = j;
-        }
-    }
-
-    // add constraints
-    /* Constraint #1: Assign each vehicle to no more than one trip */
-    // printf("Adding constraint #1 ...\n");
-    for (int vIdx = 0; vIdx < numVehicles; vIdx++) {
-        GRBLinExpr constr = 0;
-        const map<int, int>& thisMap = tempLookupRtoT[vIdx];
-        for (auto iter = thisMap.begin(); iter != thisMap.end(); ++iter) {
-            constr += epsilon[iter->first][iter->second];
-        }
-        model.addConstr(constr <= 1.0 + minimal);
-    }
-    /* Constraint #2: Each request is served on exactly one trip*/
-    // printf("Adding constraint #2 ...\n");
-    for (auto iterRV = rId_tIdxes.begin(); iterRV != rId_tIdxes.end(); ++iterRV) {
-        GRBLinExpr constr = 0;
-        int rId = iterRV->first;
-        auto iterTIdx = iterRV->second.begin();
-        while (iterTIdx != iterRV->second.end()) {
-            int tIdx = *iterTIdx;
-            vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[tIdx];
-            for (int j = 0; j < vCostIdxes.size(); j++) {
-                constr += epsilon[tIdx][j];
-            }
-            iterTIdx++;
-        }
-        model.addConstr(constr <= 1.0 + minimal);
-    }
-
-    // greedy assignment
-    // printf("Greedy assignment...\n");
-    set<int> assignedRIds, assignedVIdxes;
-    vector<int> tIdxes;
-    int tripSize = max_trip_size;
-    int maxCostTrip = 0;
-    vector<vector<pair<int, pair<int, int>> >::iterator> edgeIters, edgeEnds;
-    for (auto iterTV = tIdx_vCostIdxes.begin(); iterTV != tIdx_vCostIdxes.end(); ++iterTV) {
-        if (tripSize > trips[iterTV->first].size()) {
-            greedy_assign_same_trip_size(
-                edgeIters, edgeEnds, tIdxes, assignedRIds, assignedVIdxes,
-                epsilon, tempLookupRtoT
-            );
-            tripSize = trips[iterTV->first].size();
-            edgeIters.clear();
-            edgeEnds.clear();
-            tIdxes.clear();
-        }
-        edgeIters.push_back(iterTV->second.begin());
-        edgeEnds.push_back(iterTV->second.end());
-        tIdxes.push_back(iterTV->first); 
-        maxCostTrip = max(maxCostTrip, iterTV->second[iterTV->second.size() - 1].first);
-    }
-    greedy_assign_same_trip_size(
-        edgeIters, edgeEnds, tIdxes, assignedRIds, assignedVIdxes,
-        epsilon, tempLookupRtoT
-    );
-    int thisPenalty = maxCostTrip * 10; //penalty also defined in globals.h/.cpp
-
-    // build objective expression
-    GRBLinExpr objective = 0;
-    // printf("Generating objective expression...\n");
-    for (int tIdx = 0; tIdx < numTrips; tIdx++) {
-        vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[tIdx];
-        int reqsInTrip = trips[tIdx].size();
-        for (int vehIdx = 0; vehIdx < vCostIdxes.size(); vehIdx++) {
-            objective += epsilon[tIdx][vehIdx] * (vCostIdxes[vehIdx].first - reqsInTrip * thisPenalty);
-        }
-    }
-    model.set("TimeLimit", "1500.0");
-    model.set("MIPGap", "0.001");
-    model.set("Method", "3");
-    model.set("NodeFileStart", "1.0");
-    //model.set("Presolve","1");
-    //model.set("VarBranch","3");
-    //model.set("MIPFocus","3");
-    std::string nt = std::to_string(now_time);
-    std::string grbLogName = outDir + "GurobiLogs/" + "rtv_solve_" + nt;
-    model.set("LogFile", grbLogName + ".txt");
-    model.setObjective(objective, GRB_MINIMIZE);
-
-    // printf("Solving..
-    // solve.\n");
     try {
-        model.optimize();
+        // printf("Defining variables...\n");
+        GRBModel model = GRBModel(*env);
+        GRBVar** epsilon = new GRBVar * [numTrips];
+        for (int i = 0; i < numTrips; i++) {
+            epsilon[i] = model.addVars(tIdx_vCostIdxes[i].size(), GRB_BINARY);
+        }
+
+        // default initial values
+        // printf("Initializing...\n");
+        std::map<int, std::map<int, int>> tempLookupRtoT;
+        for (int i = 0; i < numTrips; i++) {
+            for (int j = 0; j < tIdx_vCostIdxes[i].size(); j++) {
+                epsilon[i][j].set(GRB_DoubleAttr_Start, 0.0);
+                tempLookupRtoT[(tIdx_vCostIdxes[i])[j].second.second][i] = j; //key = vIdx, value = map of (key = tIdx, value = idx into tIdx_vCostIdxes[tIdx] taht corresponds to vIdx)
+            }
+        }
+
+        // add constraints
+        /* Constraint #1: Assign each vehicle to no more than one trip */
+        // printf("Adding constraint #1 ...\n");
+        for (int vIdx = 0; vIdx < numVehicles; vIdx++) {
+            GRBLinExpr constr = 0;
+            const map<int, int>& thisMap = tempLookupRtoT[vIdx];
+            for (auto iter = thisMap.begin(); iter != thisMap.end(); ++iter) {
+                constr += epsilon[iter->first][iter->second];
+            }
+            model.addConstr(constr <= 1.0 + minimal);
+        }
+        /* Constraint #2: Each request is served on exactly one trip*/
+        // printf("Adding constraint #2 ...\n");
+        for (auto iterRV = rId_tIdxes.begin(); iterRV != rId_tIdxes.end(); ++iterRV) {
+            GRBLinExpr constr = 0;
+            int rId = iterRV->first;
+            auto iterTIdx = iterRV->second.begin();
+            while (iterTIdx != iterRV->second.end()) {
+                int tIdx = *iterTIdx;
+                vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[tIdx];
+                for (int j = 0; j < vCostIdxes.size(); j++) {
+                    constr += epsilon[tIdx][j];
+                }
+                iterTIdx++;
+            }
+            model.addConstr(constr <= 1.0 + minimal);
+        }
+
+        // greedy assignment
+        // printf("Greedy assignment...\n");
+        set<int> assignedRIds, assignedVIdxes;
+        vector<int> tIdxes;
+        int tripSize = max_trip_size;
+        int maxCostTrip = 0;
+        vector<vector<pair<int, pair<int, int>> >::iterator> edgeIters, edgeEnds;
+        for (auto iterTV = tIdx_vCostIdxes.begin(); iterTV != tIdx_vCostIdxes.end(); ++iterTV) {
+            if (tripSize > trips[iterTV->first].size()) {
+                greedy_assign_same_trip_size(
+                    edgeIters, edgeEnds, tIdxes, assignedRIds, assignedVIdxes,
+                    epsilon, tempLookupRtoT
+                );
+                tripSize = trips[iterTV->first].size();
+                edgeIters.clear();
+                edgeEnds.clear();
+                tIdxes.clear();
+            }
+            edgeIters.push_back(iterTV->second.begin());
+            edgeEnds.push_back(iterTV->second.end());
+            tIdxes.push_back(iterTV->first); 
+            maxCostTrip = max(maxCostTrip, iterTV->second[iterTV->second.size() - 1].first);
+        }
+        greedy_assign_same_trip_size(
+            edgeIters, edgeEnds, tIdxes, assignedRIds, assignedVIdxes,
+            epsilon, tempLookupRtoT
+        );
+        int thisPenalty = maxCostTrip * 10; //penalty also defined in globals.h/.cpp
+
+        // build objective expression
+        GRBLinExpr objective = 0;
+        // printf("Generating objective expression...\n");
+        for (int tIdx = 0; tIdx < numTrips; tIdx++) {
+            vector<pair<int, pair<int, int>> >& vCostIdxes = tIdx_vCostIdxes[tIdx];
+            int reqsInTrip = trips[tIdx].size();
+            for (int vehIdx = 0; vehIdx < vCostIdxes.size(); vehIdx++) {
+                objective += epsilon[tIdx][vehIdx] * (vCostIdxes[vehIdx].first - reqsInTrip * thisPenalty);
+            }
+        }
+        model.set("TimeLimit", "1500.0");
+        model.set("MIPGap", "0.001");
+		    model.set("Method", "1");
+		    model.set("NodeFileStart", "0.5");
+        //model.set("Presolve","1");
+        //model.set("VarBranch","3");
+        //model.set("MIPFocus","3");
+        std::string nt = std::to_string(now_time);
+        std::string grbLogName = outDir + "GurobiLogs/" + "rtv_solve_" + nt;
+        model.set("LogFile", grbLogName + ".txt");
+        model.setObjective(objective, GRB_MINIMIZE);
+
+        // printf("Solving..
+        // solve.\n");
+            model.optimize();
+		        // printf("]\n");
+		    //printf("Number of unserved requests: %d\n", cnt);
+        std::string part1 = std::to_string(model.get(GRB_IntAttr_Status));
+        std::string part2 = std::to_string((int)std::round(model.get(GRB_DoubleAttr_Runtime)));
+        std::string part3 = std::to_string((int)std::round(100 * model.get(GRB_DoubleAttr_MIPGap)));
+        //    std::rename(std::string(grbLogName + ".txt").c_str(), std::string(grbLogName + "_" + part1 + "_" + part2 + "_" + part3 + ".txt").c_str());
+
+                // printf("numRequests = %d\n", numRequests);
+                // printf("Assigned vehicle-trip pairs:\n");
+        int cnt = 0;
+        utilization.clear();
+        uos reqsServed;
+
+        for (int vIdx = 0; vIdx < numVehicles; vIdx++) {
+            int thisVehicleCount = 0;
+            const map<int, int>& thisMap = tempLookupRtoT[vIdx];
+            for (auto iter = thisMap.begin(); iter != thisMap.end(); ++iter) {
+                int tIdx = iter->first;
+                double val = epsilon[tIdx][iter->second].get(GRB_DoubleAttr_X);
+                if (val < 1.0 + minimal && val > 1.0 - minimal) {
+                    // printf("Vehicle #%d: [", vIds[vIdx]);
+                    Vehicle& vehicle = vehicles[vIds[vIdx]];
+                    thisVehicleCount = vehicle.get_num_passengers();
+                    Request* reqs[max_trip_size];
+                    int tripSize = 0;
+                    for (auto iter2 = trips[tIdx].begin(); iter2 != trips[tIdx].end(); ++iter2) {
+                        // printf(", %d", requests[*iter].unique);
+                        reqs[tripSize++] = &requests[*iter2];
+                        reqsServed.emplace(*iter2);
+                        cnt++;
+                        these_served_reqs++;
+                        thisVehicleCount++;
+                    }
+                    // update passengers of vehicle
+                    TravelHelper th;
+                    th.travel(vehicle, reqs, tripSize, true);
+                    break;
+                }
+            }
+            utilization[thisVehicleCount] += 1;
+        }
+        //printf("Number of served requests: %d\n\n", cnt);
+
+		for (int i = 0; i < numTrips; i++) {
+			delete[] epsilon[i];
+		}
+		delete[] epsilon;
+        unservedCollector.clear();
+        cnt = 0;
+        for (int rId = 0; rId < numRequests; rId++) {
+            if (rId_tIdxes.find(rId) == rId_tIdxes.end()
+                || reqsServed.find(rId) == reqsServed.end()) {
+                unservedCollector.push_back(requests[rId]);
+                // printf("%d, ", requests[rId].unique);
+                cnt++;
+            }
+        }
+
     }
     catch (GRBException e) {
         print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
         print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
     }
-
-    std::string part1 = std::to_string(model.get(GRB_IntAttr_Status));
-    std::string part2 = std::to_string((int)std::round(model.get(GRB_DoubleAttr_Runtime)));
-    std::string part3 = std::to_string((int)std::round(100 * model.get(GRB_DoubleAttr_MIPGap)));
-    //    std::rename(std::string(grbLogName + ".txt").c_str(), std::string(grbLogName + "_" + part1 + "_" + part2 + "_" + part3 + ".txt").c_str());
-
-            // printf("numRequests = %d\n", numRequests);
-            // printf("Assigned vehicle-trip pairs:\n");
-    int cnt = 0;
-    utilization.clear();
-    uos reqsServed;
-
-    for (int vIdx = 0; vIdx < numVehicles; vIdx++) {
-        int thisVehicleCount = 0;
-        const map<int, int>& thisMap = tempLookupRtoT[vIdx];
-        for (auto iter = thisMap.begin(); iter != thisMap.end(); ++iter) {
-            int tIdx = iter->first;
-            double val = epsilon[tIdx][iter->second].get(GRB_DoubleAttr_X);
-            if (val < 1.0 + minimal && val > 1.0 - minimal) {
-                // printf("Vehicle #%d: [", vIds[vIdx]);
-                Vehicle& vehicle = vehicles[vIds[vIdx]];
-                thisVehicleCount = vehicle.get_num_passengers();
-                Request* reqs[max_trip_size];
-                int tripSize = 0;
-                for (auto iter2 = trips[tIdx].begin(); iter2 != trips[tIdx].end(); ++iter2) {
-                    // printf(", %d", requests[*iter].unique);
-                    reqs[tripSize++] = &requests[*iter2];
-                    reqsServed.emplace(*iter2);
-                    cnt++;
-                    these_served_reqs++;
-                    thisVehicleCount++;
-                }
-                // update passengers of vehicle
-                TravelHelper th;
-                th.travel(vehicle, reqs, tripSize, true);
-                break;
-            }
-        }
-        utilization[thisVehicleCount] += 1;
-    }
-    //printf("Number of served requests: %d\n\n", cnt);
-
-    unservedCollector.clear();
-    cnt = 0;
-    for (int rId = 0; rId < numRequests; rId++) {
-        if (rId_tIdxes.find(rId) == rId_tIdxes.end()
-            || reqsServed.find(rId) == reqsServed.end()) {
-            unservedCollector.push_back(requests[rId]);
-            // printf("%d, ", requests[rId].unique);
-            cnt++;
-        }
-    }
-    // printf("]\n");
-    //printf("Number of unserved requests: %d\n", cnt);
-
-    for (int i = 0; i < numTrips; i++) {
-        delete[] epsilon[i];
-    }
-    delete[] epsilon;
 }
 

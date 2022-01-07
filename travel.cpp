@@ -262,9 +262,6 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
         }
     }
 
-    if (reqs[0]->start == 2152 && reqs[0]->end == 2962) {
-        int x = 5;
-    }
     int beginTime = vehicle.getAvailableSince();
     vehicle.fixPassengerStatus(beginTime);
     vector<Request::requestStatus> pre_statuses;
@@ -290,6 +287,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
         request # (index into vector of requests)
     */
     int occupancyStart = vehicle.getOccupancyAt(beginTime);
+    assert(!vehicle.offline || bFeasibilityCheck);
     dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyStart, 0, 0, 0,
         beginTime, 0, now_time, decided, observeReqTimeLimits, bFeasibilityCheck); //todo prob add offset, "this is how much to offset"
 
@@ -298,7 +296,9 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
             vehicle.passengers[i].status = pre_statuses[i];
         }
     }
-
+    if (decided && (ansTravelled < 0)) {
+        int x = 5;
+    }
     if (ansTravelled >= 0) {
         if (decided) {
             for (int m = 0; m < ansSchedule.size(); m++) {
@@ -323,8 +323,12 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                     beginTime = finalPath[finalPath.size() - 1].first;
                 }
                 int node = ansPath[m].second.first;
+                if (prevNode == 2613 && node == 3292) {
+                    int x = 5;
+                }
                 pair<int, int> fpResult;
                 order.clear();
+                pair<int, int> temp = treeCost.get_dist(prevNode, node);
                 #pragma omp critical (findpath)
                 fpResult = treeCost.find_path(prevNode - 1, node - 1, order);
                 order[0] += 1;
