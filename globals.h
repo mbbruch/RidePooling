@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <chrono>
 using namespace std;
 extern int now_time;
@@ -30,8 +31,9 @@ extern int vehicle_depot;
 
 static const int max_capacity = 2;
 static const int max_trip_size = 8;
-static const int fleet_size = 300;
+static const int fleet_size = 2;
 static const double cars_needed_per_trip_per_30 = 0.75;
+static const int req_per_window = 100;
 static const std::chrono::time_point startTime = std::chrono::system_clock::now();
 static const std::string baseDir = "C:/Code_Projects/RidePooling/";
 static const std::string city = "austin";
@@ -57,7 +59,7 @@ static const int INF = 0x3fffffff;
 
 static const std::string stdOutput = "CONOUT$";
 
-extern const int time_step;
+extern int time_step;
 extern const int max_node;
 extern const int max_wait_sec;
 extern const int max_delay_sec;

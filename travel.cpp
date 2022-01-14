@@ -244,29 +244,21 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
 int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool decided, bool observeReqTimeLimits, bool bFeasibilityCheck) {
 
     clock_t beginClock = clock();
-    travel_cnt++;
 
     targetSet target; // Origin of all new reqs, plus destination of in-progress passengers
     map<locReq, set<locReq> > src_dst; // For all origins in reqs, a vector of attached destinations
-    map<int, int> reqCounter;
     // insert new requests: s->t into src_dst
     for (int i = 0; i < numReqs; i++) {
         Request *req = reqs[i];
         src_dst[make_pair(req->start,req->unique)].insert(make_pair(req->end,req->unique));
         target.insert(make_pair(req->start,req->unique));
-        reqCounter[req->unique]++;
-    }
-    for (auto it = reqCounter.begin(); it != reqCounter.end(); it++) {
-        if (it->second > 1) {
-            int x = 5;
-        }
     }
 
     int beginTime = vehicle.getAvailableSince();
     vehicle.fixPassengerStatus(beginTime);
-    vector<Request::requestStatus> pre_statuses;
+    vector<Request::requestStatus> pre_statuses(vehicle.get_num_passengers(),Request::requestStatus::waiting);
     for (int i = 0; i < vehicle.get_num_passengers(); i++) {
-        pre_statuses.push_back(vehicle.passengers[i].status);
+        pre_statuses[i] = vehicle.passengers[i].status;
     }
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary
@@ -296,17 +288,9 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
             vehicle.passengers[i].status = pre_statuses[i];
         }
     }
-    if (decided && (ansTravelled < 0)) {
-        int x = 5;
-    }
+    
     if (ansTravelled >= 0) {
         if (decided) {
-            for (int m = 0; m < ansSchedule.size(); m++) {
-                const Request& thisReq = ansSchedule[m];
-                if (thisReq.start == 2152 && thisReq.end == 2962) {
-                    int t = 2;
-                }
-            }
             beginTime += ansOffset;
             vector<int> order;
             vector<pair<int, int> > finalPath;
@@ -323,12 +307,8 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                     beginTime = finalPath[finalPath.size() - 1].first;
                 }
                 int node = ansPath[m].second.first;
-                if (prevNode == 2613 && node == 3292) {
-                    int x = 5;
-                }
                 pair<int, int> fpResult;
                 order.clear();
-                pair<int, int> temp = treeCost.get_dist(prevNode, node);
                 #pragma omp critical (findpath)
                 fpResult = treeCost.find_path(prevNode - 1, node - 1, order);
                 order[0] += 1;

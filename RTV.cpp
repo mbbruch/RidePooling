@@ -136,12 +136,13 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
     const double sparsity = totalConnections / (1.0 * (partlyConnectedVeh * nReq));
     print_line(outDir, logFile, string_format("%d vehicles, %d requests, %d fully connected vehicles, %d most connected (%f), %f percent dense.", numVehicles, nReq, fullyConnectedVeh, maxConnections, maxConnections * 100.0 / nReq, 100.0 * sparsity));
     const bool bSparseTwo = (!bFullyConnectedVeh) && (sparsity < 0.8);
-    const bool bSparseThree =  (!bFullyConnectedVeh) && (sparsity < 0.001);
     //const bool bTesting = true;
     unordered_map<int, int> adjustedTripIdxes;
     auto time2 = std::chrono::system_clock::now();
     int travelCounter = 0;
     int lastSizeSize = requests.size();
+	double lastSizeMaxConnectedness = 0;
+	double lastSizeAvgConnectedness = 0;
     int test1counter = 0, test2counter = 0, test3counter = 0;
     for (int k = 2; k <= max_trip_size; k++) {
         /*  Ex: to combine 4 requests, previous entry is 3-way combos,
@@ -213,26 +214,28 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             }
         }
         else {
+			const bool bSparseThree = (!bFullyConnectedVeh) && lastSizeAvgConnectedness<0.01 && lastSizeMaxConnectedness < 0.25;
+			print_line(outDir, logFile, string_format("Starting enumeration: avg connectedness %f, max %f.",lastSizeAvgConnectedness,lastSizeMaxConnectedness));
             if (bSparseThree && (k == 3)) {
                 print_line(outDir, logFile, std::string("Enumerating sparse 3"));
                 uos_of_uos3 sop;
-                sop.reserve((lastSizeSize * (lastSizeSize - 1) * (lastSizeSize - 2) / 3) * sparsity * 2);
+                ///sop.reserve((lastSizeSize * (lastSizeSize - 1) * (lastSizeSize - 2) / 3) * sparsity * 2);
                 int vIdx = 0;
                 //#pragma omp parallel for default(none) private(vIdx) shared(sop, k, rvGraph)
                 for (vIdx = 0; vIdx < numVehicles; vIdx++) {
                     const auto it = rvGraph->car_req_cost.find(vIds[vIdx]);
                     if (it == rvGraph->car_req_cost.end()) continue;
                     const vector<std::pair<int, int>>& thisVehVec = it->second;
-                    int thisSize = thisVehVec.size();
+                    int thisVehSize = thisVehVec.size();
                     std::vector<std::array<int,3>> vUos;
-                    vUos.reserve(thisSize * (thisSize - 1) * (thisSize - 2) / 3);
+                    vUos.reserve(thisVehSize * (thisVehSize - 1) * (thisVehSize - 2) / 3);
                     int i, j, l = 0;
                     std::array<int, 3> thisSet;
-                    for (i = 0; i < thisSize; ++i){
+                    for (i = 0; i < thisVehSize; ++i){
                         thisSet[0] = thisVehVec[i].first;
-                        for (j = i+1; j < thisSize; ++j) {
+                        for (j = i+1; j < thisVehSize; ++j) {
                             thisSet[1] = thisVehVec[j].first;
-                            for (l = j + 1; l < thisSize; ++l) {
+                            for (l = j + 1; l < thisVehSize; ++l) {
                                 thisSet[2] = thisVehVec[l].first;
                                 vUos.push_back(thisSet);
                             }
@@ -328,7 +331,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
             const int twoSmallerSize = allPotentialTrips[k - 3].size();
             auto adjustedTripEnd = adjustedTripIdxes.end();
             int m = 0;
-				#pragma omp parallel for default(none) private(m) shared(k, bSparseThree, twoSmallerSize, newTrips, adjustedTripEnd, adjustedTripIdxes)
+				#pragma omp parallel for default(none) private(m) shared(k, newTrips, adjustedTripEnd, adjustedTripIdxes)
             for (m = 0; m < twoSmallerSize; m++) {
                 const vector<int>& dependentTrips = allPotentialTrips[k - 3][m].dependentTrips;
                 int numDependentTrips = dependentTrips.size();
@@ -392,13 +395,14 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
 		for(auto it = newTrips.begin(); it != newTrips.end(); it++){
             elements.push_back(&(*it));
         }
-        int noVeh = 0;
-        print_line(outDir, logFile, string_format("Enumerated potential %d-trips.", k));
-        print_ram(outDir, string_format("%d_after_potential_trip_enumeration_%d", now_time, k));
         elementSize = elements.size();
-        //#pragma omp parallel for default(none) schedule(guided) shared(prevInclusions, newTrips, elementSize, elements, requests, k, thisSizeCounter, vehConnex, rvGraph, treeCost, adjustedTripIdxes)
-        for (int j = 0; j < elementSize; j++) {
-            if (!bFullyConnectedVeh && !(bSparseTwo && k == 2)) {
+        print_line(outDir, logFile, string_format("Enumerated %d potential %d-trips.", elementSize, k));
+        print_ram(outDir, string_format("%d_after_potential_trip_enumeration_%d", now_time, k));
+        int noVeh = 0;
+        int j = 0;
+        #pragma omp parallel for default(none) private(j) shared(noVeh, bAltMethod, prevInclusions, newTrips, elementSize, elements, requests, k, thisSizeCounter, vehConnex, rvGraph, treeCost, adjustedTripIdxes)
+        for (j = 0; j < elementSize; j++) {
+            if (!bFullyConnectedVeh && !(bSparseTwo && k == 2) && !bAltMethod) {
                 bool bVehicleIncludes = false;
                 for (auto itVeh = vehConnex.begin(); itVeh != vehConnex.end(); ++itVeh) {
                     bool bMatch = true;
@@ -511,7 +515,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         //Erase removed k-trip dependencies from k-1-trips
         int temp1 = allPotentialTrips[k - 2].size();
 		int apt_i = 0;
-		//#pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(apt_i) shared(noVeh, prevInclusions, newTrips, elementSize, elements, requests, k, thisSizeCounter, vehConnex, rvGraph, treeCost, adjustedTripIdxes)
+		#pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(apt_i) shared(noVeh, prevInclusions, newTrips, elementSize, elements, requests, k, thisSizeCounter, vehConnex, rvGraph, treeCost, adjustedTripIdxes)
         for (apt_i = 0; apt_i < allPotentialTrips[k - 2].size(); apt_i++) { //
             std::vector<int>& theseDependents = allPotentialTrips[k - 2][apt_i].dependentTrips; 
 			theseDependents.erase(std::remove_if(theseDependents.begin(), theseDependents.end(),
@@ -553,6 +557,7 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
         vehConnex.clear();
         auto itPrev = prevInclusions.begin();
         int idx = 0;
+		int totalConnex = 0;
         while (itPrev != prevInclusions.end()) {
             for (auto it2 = itPrev->second.begin(); it2 != itPrev->second.end(); )
             {
@@ -564,12 +569,16 @@ void RTVGraph::build_potential_trips(RVGraph* rvGraph, vector<Request>& requests
                 itPrev = prevInclusions.erase(itPrev);
             }
             else {
-                if(connex > k) vehConnex.insert(make_pair(-connex, idx));
+                if(connex > k) {
+					vehConnex.insert(make_pair(-connex, idx));
+					totalConnex += connex;
+				}
                 idx++;
                 ++itPrev;
             }
         }
-
+		lastSizeMaxConnectedness = vehConnex.size() > 0 ? (-1.0*(vehConnex.begin()->first))/(1.0*lastSizeSize) : 0.0;
+		lastSizeAvgConnectedness = vehConnex.size() > 0 ? 1.0*totalConnex / (1.0*vehConnex.size()) / (1.0*lastSizeSize): 0.0;
         std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now() - startOfSizeK;
         print_line(outDir, logFile, string_format("Potential %d-trips built (%f seconds, %d/%d met clique reqmt, %d after ideal vehicle, %d after single vehicles).",
             k,
@@ -592,9 +601,9 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
     const std::vector<tripCandidate>& thisSizeVec = allPotentialTrips[tripSize - 1];
     if (lastSizeVec.size() < tripSize || thisSizeVec.size() == 0) return;
 
-    std::vector<std::pair<int, std::pair<int, int>>> allValidTripCosts;
+    std::vector<std::pair<int, std::pair<int, int>>> validTripCosts;
     int m = 0;
-    //#pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(m) schedule(guided) shared(allValidTripCosts, addedTrips, adjustedTripIdxes, requests, vehicles, vehIDToVehIdx, tripSize, treeCost, lastSizeVec, thisSizeVec, prevInclusions, theseInclusions)
+    #pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(m) schedule(guided) shared(validTripCosts, addedTrips, adjustedTripIdxes, requests, vehicles, vehIDToVehIdx, tripSize, treeCost, lastSizeVec, thisSizeVec, prevInclusions, theseInclusions)
     for (m = 0; m < prevInclusions.size(); m++) {
         int vId = prevInclusions[m].first; //index into vehicles, not RTV vehicle indices
         const uos& carPrev = prevInclusions[m].second;
@@ -608,9 +617,8 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
         else {
             continue;
         }
-
-        std::vector<std::pair<int,std::pair<int,int>>> validTripCosts;
-        validTripCosts.reserve(carPrev.size() * (carPrev.size() - 1) / 2);
+		std::vector<std::pair<int, std::pair<int, int>>> theseValidTripCosts;
+        theseValidTripCosts.reserve(carPrev.size() * (carPrev.size() - 1) / 2);
         if (carPrev.size() == lastSizeVec.size()) {
             for (int i = 0; i < thisSizeVec.size(); i++) {
                 vector<Request> copiedRequests;
@@ -629,7 +637,7 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                 int cost = th.travel(vehicle, reqs, tripSize, false);
                 if (cost >= 0) {
                     int tripIdx = getTIdx(thisSizeVec[i].requests);
-                    validTripCosts.push_back(make_pair(vIdx,make_pair(tripIdx, cost)));
+                    theseValidTripCosts.push_back(make_pair(vIdx,make_pair(tripIdx, cost)));
                     addedTrips[i] = 1;
                     //add_edge_trip_vehicle(thisSizeVec[i].requests, vIdx, cost);
                     theseInclusions[m].second.insert(i);
@@ -678,20 +686,20 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                 if (cost >= 0) {
                     //add_edge_trip_vehicle(thisSizeVec[it->first].requests, vIdx, cost);
                     int tripIdx = getTIdx(thisSizeVec[it->first].requests);
-                    validTripCosts.push_back(make_pair(vIdx, make_pair(tripIdx, cost)));
+                    theseValidTripCosts.push_back(make_pair(vIdx, make_pair(tripIdx, cost)));
                     addedTrips[it->first] = 1;
                     theseInclusions[m].second.insert(it->first);
                 }
             }
         }
         #pragma omp critical(pushingToVec)
-        allValidTripCosts.insert(allValidTripCosts.end(), validTripCosts.begin(), validTripCosts.end());
+        validTripCosts.insert(validTripCosts.end(), theseValidTripCosts.begin(), theseValidTripCosts.end());
     }
     std::string vehTripsFile = outDir + "Misc/Trips/trips_valid_" + to_string(tripSize) + ".hps";
     std::ofstream out_file(vehTripsFile, std::ofstream::binary | std::ios_base::app);
-    hps::to_stream(allValidTripCosts, out_file);
+    hps::to_stream(validTripCosts, out_file);
     out_file.close();
-    std::vector<std::pair<int, std::pair<int, int>>>().swap(allValidTripCosts);
+    std::vector<std::pair<int, std::pair<int, int>>>().swap(validTripCosts);
 }
 
 void RTVGraph::serialize_current_combos() {
@@ -913,7 +921,7 @@ void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles,
             model.set("Threads", to_string(omp_get_max_threads() - 2));
             model.set("Method", "1");
             model.set("TimeLimit", "300.0");
-            model.set("MIPGap", "0.001");
+			model.set("MIPGap", "0.005");
             model.set("NodeFileStart", "0.5");
             std::string grbLogName = outDir + "GurobiLogs/" + "rebalance1_" + std::to_string(now_time);
             model.set("LogFile", grbLogName + ".txt");
@@ -991,13 +999,14 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
     int unservedCnt = (int)unserved.size();
     int assignedCnt = 0;
     if (idleCnt > 0 && unservedCnt > 0) {
-        try {
+		int idleToDelete = idleCnt;
             GRBModel model2 = GRBModel(*env);
             GRBVar** y = new GRBVar * [idleCnt];
             for (int i = 0; i < idleCnt; i++) {
                 y[i] = model2.addVars(unservedCnt, GRB_BINARY);
             }
             GRBLinExpr* rEdgesCnt = new GRBLinExpr[unservedCnt];
+        try {
             for (int j = 0; j < unservedCnt; j++) {
                 rEdgesCnt[j] = 0;
             }
@@ -1042,7 +1051,7 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
             model2.set("Threads", to_string(omp_get_max_threads() - 2));
             model2.set("Method", "1");
             model2.set("TimeLimit", "300.0");
-            model2.set("MIPGap", "0.001");
+        model2.set("MIPGap", "0.005");
             model2.set("NodeFileStart", "0.5");
             std::string grbLogName = outDir + "GurobiLogs/" + "rebalance2_" + std::to_string(now_time);
             model2.set("LogFile", grbLogName + ".txt");
@@ -1051,6 +1060,7 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
             double maxAssignments = model2.get(GRB_DoubleAttr_ObjVal);
             model2.addConstr(totalEdgesCnt == maxAssignments);
             model2.setObjective(objectiveMain, GRB_MINIMIZE);
+        model2.set("MIPGap", "0.01");
             model2.optimize();
 
             vector<int> stillIdleVIDs;
@@ -1087,17 +1097,16 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
                     stillIdleVIDs.push_back(idleVIds[i]);
                 }
             }
-
-            delete[] rEdgesCnt;
-            for (int i = 0; i < idleCnt; i++) {
-                delete[] y[i];
-            }
-            delete[] y;
         }
         catch (GRBException& e) {
             print_line(outDir, logFile, string_format("Gurobi exception code in rebalancing 2: %d.", e.getErrorCode()));
             print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
         }
+		delete[] rEdgesCnt;
+            for (int i = 0; i < idleToDelete; i++) {
+			delete[] y[i];
+		}
+		delete[] y;
     }
     update_unserved_from_rebalancing(unserved, newlyServed);
 }
@@ -1186,22 +1195,21 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
     }
 
     int idleCnt = idleVehIDs.size();
-    try {
         GRBModel model3 = GRBModel(*env);
         GRBVar** y = new GRBVar * [idleVehIDs.size()];
         for (int i = 0; i < idleVehIDs.size(); i++) {
             y[i] = model3.addVars(areaCount + 1, GRB_BINARY);
         }
         GRBVar* z = model3.addVars(areaCount, GRB_INTEGER);
-
+	GRBLinExpr* aEdgesCnt = new GRBLinExpr[areaCount + 1];
+	GRBVar* aEdgesReward = model3.addVars(areaCount + 1, GRB_CONTINUOUS);
+    try {
         GRBLinExpr objectiveMain = 0;
         GRBLinExpr objectiveCnt = 0;
         GRBLinExpr offlineDepotToOnlineCnt = 0;
         GRBLinExpr offlineEnRouteToOnlineCnt = 0;
         GRBLinExpr onlineToOfflineCnt = 0;
         const int offlineDepotAreaIdx = areaCount;
-        GRBLinExpr* aEdgesCnt = new GRBLinExpr[areaCount + 1];
-        GRBVar* aEdgesReward = model3.addVars(areaCount + 1, GRB_CONTINUOUS);
         //GRBLinExpr* aEdgesReward = new GRBLinExpr[areaCount + 1];
         for (int j = 0; j < areaCount + 1; j++) {
             aEdgesCnt[j] = 0;
@@ -1211,7 +1219,7 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
             int thisId = idleVehIDs[i].first;
             GRBLinExpr vEdgesCnt = 0;
             bool bAdded = false;
-            int startNode = vehicles[thisId].get_num_passengers() == 0 ? vehicles[thisId].get_location() : vehicles[thisId].scheduledPath.back().second;
+            int startNode = (vehicles[thisId].get_num_passengers() == 0 || vehicles[thisId].scheduledPath.size()==0)? vehicles[thisId].get_location() : vehicles[thisId].scheduledPath.back().second;
             int startArea = treeCost.node_areas[startNode - 1];
             for (int j = 0; j < areaCount + 1; j++) {
                 int cost = 0;
@@ -1271,16 +1279,22 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
             }
         }
 
-        model3.setObjectiveN(objectiveCnt, 0, 2);
-        model3.setObjectiveN(objectiveMain, 1, 1);
+        model3.setObjective(objectiveCnt, GRB_MAXIMIZE);
+
         model3.set("Threads", to_string(omp_get_max_threads() - 2));
         model3.set("Method", "1");
         model3.set("TimeLimit", "300.0");
-        model3.set("MIPGap", "0.001");
+        model3.set("MIPGap", "0.005");
         model3.set("NodeFileStart", "0.5");
         std::string grbLogName = outDir + "GurobiLogs/" + "rebalance3_" + std::to_string(now_time);
         model3.set("LogFile", grbLogName + ".txt");
         model3.set("ResultFile", grbLogName + ".ilp");
+        model3.optimize();
+
+        double maxReward = model3.get(GRB_DoubleAttr_ObjVal);
+        model3.addConstr(objectiveCnt == maxReward);
+        model3.setObjective(objectiveMain, GRB_MINIMIZE);
+        model3.set("MIPGap", "0.01");
         model3.optimize();
 
         /* TODO: handle routing of going offline or online cars, incl edge cases:
@@ -1374,7 +1388,11 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
                 }
             }
         }
-
+    }
+    catch (GRBException& e) {
+        print_line(outDir, logFile, string_format("Gurobi exception code in rebalancing 3: %d.", e.getErrorCode()));
+        print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
+    }
         delete[] aEdgesCnt;
         delete[] aEdgesReward;
         for (int i = 0; i < idleVehIDs.size(); i++) {
@@ -1382,17 +1400,15 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
         }
         delete[] y;
         delete[] z;
-    }
-    catch (GRBException& e) {
-        print_line(outDir, logFile, string_format("Gurobi exception code in rebalancing 3: %d.", e.getErrorCode()));
-        print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
-    }
 }
 void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, bool bEquityVersion) {
     int unservedCnt = unserved.size();
     rebalance_for_pruning_fix(env, vehicles, unserved);
     rebalance_for_finishing_cars(env, vehicles, unserved);
-    rebalance_for_demand_forecasts(env, vehicles, unserved, now_time, bEquityVersion);
+    int isPositive = (int)(now_time >= 0);
+    int timeToUse = ((now_time + isPositive * (300 - 1)) / 300) * 300; //forecasts are imported in 300 second intervals; get the next one
+	print_line(outDir, logFile, string_format("Rebalancing (now=%d, using forecasts from %d.)",now_time, timeToUse));
+    rebalance_for_demand_forecasts(env, vehicles, unserved, timeToUse, bEquityVersion);
 }
 
 void RTVGraph::sort_edges() {
@@ -1414,14 +1430,18 @@ void RTVGraph::sort_edges() {
             iter->second.shrink_to_fit();
         }
     }
-    std::vector<TIdxComparable>().swap(indices);
     elapsed_seconds = (std::chrono::system_clock::now() - thisTime);
     print_line(outDir, logFile, string_format("tIdx_vCostIdxes sorting time = %f.", elapsed_seconds.count()));
     thisTime = std::chrono::system_clock::now();
-
+    std::vector<int> sizes(indices.size(),-1);
+    for (int i = 0; i < indices.size(); i++) {
+        sizes[i] = trips[indices[i]].size();
+    }
+    std::vector<TIdxComparable>().swap(indices);
     #pragma omp parallel for private(i) num_threads(omp_get_max_threads())
     for (i = 0; i < vIdx_tIdxes.size(); i++) {
-        sort(vIdx_tIdxes[i].begin(), vIdx_tIdxes[i].end());
+        std::sort(vIdx_tIdxes[i].begin(), vIdx_tIdxes[i].end(),
+            [&sizes](const pair<int, pair<int, int>>& a, const pair<int, pair<int, int>>& b) { return (double)a.first/(double)sizes[a.second.second] > (double)b.first/(double)sizes[b.second.second]; });
         vIdx_tIdxes[i].resize(min(static_cast<int>(vIdx_tIdxes[i].size()), min_req_per_v));
         vIdx_tIdxes[i].shrink_to_fit();
     }
@@ -1529,14 +1549,15 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
         prevSize, prevSize2, sortedSize, sortedSize2, prunedSize, prunedSize2, elapsed_seconds.count()));
 
 
-    try {
         // printf("Defining variables...\n");
         GRBModel model = GRBModel(*env);
         GRBVar** epsilon = new GRBVar * [numTrips];
+	int numToDelete = numTrips;
         for (int i = 0; i < numTrips; i++) {
             epsilon[i] = model.addVars(tIdx_vCostIdxes[i].size(), GRB_BINARY);
         }
 
+    try {
         // default initial values
         // printf("Initializing...\n");
         std::map<int, std::map<int, int>> tempLookupRtoT;
@@ -1615,7 +1636,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
             }
         }
         model.set("TimeLimit", "1500.0");
-        model.set("MIPGap", "0.001");
+		model.set("MIPGap", "0.005");
 		    model.set("Method", "1");
 		    model.set("NodeFileStart", "0.5");
         //model.set("Presolve","1");
@@ -1671,11 +1692,6 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
             utilization[thisVehicleCount] += 1;
         }
         //printf("Number of served requests: %d\n\n", cnt);
-
-		for (int i = 0; i < numTrips; i++) {
-			delete[] epsilon[i];
-		}
-		delete[] epsilon;
         unservedCollector.clear();
         cnt = 0;
         for (int rId = 0; rId < numRequests; rId++) {
@@ -1692,5 +1708,9 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
         print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
         print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
     }
+	for (int i = 0; i < numToDelete; i++) {
+		delete[] epsilon[i];
+	}
+	delete[] epsilon;
 }
 

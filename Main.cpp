@@ -29,29 +29,6 @@ int main(int argc, char* argv[]) {
     std::string outFilename = "main_" + filenameTime + ".csv";//argv[3];
     logFile = "logfile_" + filenameTime + ".txt";//argv[3];
     setupOutfiles(outDir, outFilename);
-    //max_capacity = atoi(argv[4]);
-
-    std::vector<int> test(10000000,5);
-    std::string testFile = baseInDir + city +"test_set.log";    
-    std::ofstream out_file(testFile, std::ofstream::binary);
-    hps::to_stream(test, out_file);
-    out_file.close();
-    std::ifstream in_file(testFile, std::ofstream::binary);
-    auto parsed = hps::from_stream<std::vector<int>>(in_file);
- //   assert(parsed == test);
- //   std::ofstream out_file(testFile, std::ofstream::binary);
- //   hps::to_stream(test, out_file);
-//    for(int i = 0; i < 100; i++) hps::to_stream(test, out_file);
-
- //   std::ifstream in_file(testFile, std::ifstream::binary);
-  //  std::vector<int> test2 = hps::from_stream<std::vector<int>>(in_file);
-
-
-    std::vector<int> data({ 22, 333, -4444 });
-
-    std::string serialized = hps::to_string(data);
-    auto parsed2 = hps::from_string<std::vector<int>>(serialized);
-
     print_line(outDir, logFile, "Initializing GRBEnv");
     GRBEnv* env;
     try {
@@ -66,7 +43,7 @@ int main(int argc, char* argv[]) {
 
 	omp_set_num_threads(6);
     //env->set(GRB_IntParam_Threads, 4);
-    now_time = -time_step;
+    now_time = -time_step; //250200 -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
     total_dist = unserved_dist = raw_dist = 0;
     total_wait_time = 0;
@@ -102,6 +79,7 @@ int main(int argc, char* argv[]) {
     std::vector<Request> beforesolveReq;
     std::vector<Request> beforesolveUns;
     std::vector<Vehicle> beforerebalance;
+    map<int, int> reqCounter;
     FILE* in = get_requests_file(reqFile.c_str());
     //FILE* in = get_requests_file(std::string(baseInDir + "requests_with_dist.csv").c_str());
     //update_requests_with_dist(in);
@@ -117,16 +95,6 @@ int main(int argc, char* argv[]) {
         requests.clear();
         if (hasMore) {
             requests.push_back(tail);
-        }
-        map<int, int> reqCounter;
-        // insert new requests: s->t into src_dst
-        for (int i = 0; i < unserved.size(); i++) {
-            reqCounter[unserved[i].unique]++;
-        }
-        for (auto it = reqCounter.begin(); it != reqCounter.end(); it++) {
-            if (it->second > 1) {
-                int x = 5;
-            }
         }
 
         print_line(outDir, logFile, string_format("Unserved: %d", unserved.size()));
@@ -151,6 +119,7 @@ int main(int argc, char* argv[]) {
         else {
             hasMore = false;
         }
+        if (requests.size() > 0) time_step = requests[requests.size()-1].reqTime - now_time;
         reqCounter.clear();
         for (int i = 0; i < requests.size(); i++) {
             reqCounter[requests[i].unique]++;

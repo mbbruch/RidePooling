@@ -300,11 +300,6 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
         bool bOffloaded = iterPsngr->scheduledOffTime <= nowTime;
         if (bNotYetOnboard) { // hasn't gotten on board
             iterPsngr->status = Request::requestStatus::waiting;
-            for (int i = 0; i < newRequests.size(); i++) {
-                if (newRequests[i].unique == iterPsngr->unique) {
-                    int x = 5;
-                }
-            }
             #pragma omp critical(pushbackreq)
             newRequests.push_back(*iterPsngr);
         }

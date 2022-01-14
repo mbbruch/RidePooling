@@ -179,12 +179,12 @@ FILE* get_requests_file(const char* file) {
 void read_vehicles(const char* file, vector<Vehicle>& vehicles) {
     vehicles.clear();
     printf("vehicle file = %s\n", file);
-    FILE* in = NULL;
+    FILE *in = NULL;
     in = fopen(file, "r");
     int loc;
     int num = 0;
     max_vehicle = 0;
-    while (num != EOF && max_vehicle <= fleet_size){
+    while (num != EOF && max_vehicle < fleet_size){
         num = fscanf(in, "%d\n", &loc);
         if (num != EOF) {
             vehicles.push_back(Vehicle(loc));
@@ -211,7 +211,9 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
     int start, end, reqTime, dist;
     these_reqs = 0;
     these_served_reqs = 0;
-    while (num != EOF) {
+    int counter = 0;
+    toTime = INF;
+    while (num != EOF ) {
         num = fscanf(in, "%d,%d,%d,%d\n", &reqTime, &start, &end, &dist);
         if (num != EOF) {
             if (start != end) {
@@ -219,20 +221,26 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
                 r.shortestDist = dist;
                 r.expectedOffTime = reqTime + ceil((double(r.shortestDist)) / velocity);
                 requests.push_back(r);
+				//print_line(outDir, logFile, string_format("%d, %d, %d, %d.", reqTime, start, end, dist)); 
+				
+				/*
                 std::vector<int> order;
-                pair<int, int> result1 = treeCost.get_dist(start, end);
-                pair<int, int> result = treeCost.find_path(start - 1, end - 1, order);
+				std::vector<int> suborder;
+                pair<int,int> result1 = treeCost.get_dist(start, end);
+                pair<int,int> result2 = treeCost.search_cache(start-1, end-1);
+                pair<int,int> result = treeCost.find_path(start-1, end-1, order);
                 order[0] += 1;
-                /*
-                print_line(outDir, logFile, string_format("%d, %d, %d, %d.", result1.first, result.first, result1.second, result.second));
+				print_line(outDir, logFile, string_format("%d, %d, %d, %d, %d, %d.", result1.first, result2.first, result.first, result1.second, result2.second, result.second));
                 
-                print_line(outDir, logFile, string_format("Request distance from %d to %d: %f miles (%f minutes).", r.start, r.end, result.second * 6.21371e-5, (double)(r.expectedOffTime - r.reqTime) / 60.0));
-                for (int i = 1; i < order.size(); i++) {
+                print_line(outDir, logFile, string_format("Request distance from %d to %d: %f dm (%f minutes).", r.start, r.end, result.second, (double)(r.expectedOffTime - r.reqTime)/60.0));
+                for(int i = 1; i < order.size(); i++){
                     order[i] += 1;
-                    int dist = treeCost.get_dist(order[i - 1], order[i]).second;
-                    print_line(outDir, logFile, string_format("     Order: %d to %d: %f miles.", dist * 6.21371e-5));
+                    int dist1 = treeCost.get_dist(order[i - 1], order[i]).second;
+                    int dist2 = treeCost.find_path(order[i - 1]-1, order[i]-1, suborder).second;
+                    int dist3 = treeCost.search_cache(order[i - 1]-1, order[i]-1).second;
+					print_line(outDir, logFile, string_format("Order: %d to %d: %d dm per get_dist, %d per search_cache, %d per find_path.",order[i - 1], order[i],dist1, dist3, dist2));
                 }
-                */
+*/
                 //print_line(outDir, logFile, string_format("Request distance: %d.", r.expectedOffTime - r.reqTime));
                 raw_dist += r.shortestDist;
                 total_reqs++;
@@ -240,13 +248,16 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
                 if (reqTime > toTime) {
                     return true;
                 }
+                if (++counter >= req_per_window) {
+                    toTime = reqTime;
+                }
             }
         }
     }
     return false;
 }
 
-void update_requests_with_dist(FILE*& in) {
+void update_requests_with_dist(FILE*& in) { 
     int start, end, reqTime, dist, dist_new;
     these_reqs = 0;
     these_served_reqs = 0;
@@ -257,7 +268,7 @@ void update_requests_with_dist(FILE*& in) {
         num = fscanf(in, "%d,%d,%d, %d\n", &reqTime, &start, &end, &dist);
         if (num != EOF) {
             if (start != end) {
-                dist_new = treeCost.get_dist(start, end).first;
+                dist_new = treeCost.get_dist(start, end).second;
                 ofs << string_format("%d,%d,%d,%d\n", reqTime, start, end, dist_new);
             }
         }
@@ -287,7 +298,7 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
 */
     }
 	
-	print_line(outDir, logFile, string_format("Unserved: %d (%d over time limit)", unserved.size(), overTimeLimit));
+	print_line(outDir, logFile, string_format("Unserved: %d (%d over time limit)", (int)unserved.size(), overTimeLimit));
 }
 
 void update_vehicles(vector<Vehicle>& vehicles, vector<Request>& requests, int nowTime) {
@@ -428,3 +439,4 @@ void getDisjunction(const uos& a, const uos& b, pair<int, int>& toReturn) {
         }
     }//first = -1 for fail, 0 for add to a, 1 for add to b; second: the thing to add
 }
+
