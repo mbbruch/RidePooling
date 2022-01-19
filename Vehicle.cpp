@@ -13,6 +13,7 @@
 using namespace std;
 
 Vehicle::Vehicle() {
+    this->location = vehicle_depot;
     timeToNextNode = 0;
     available = false;
     availableSince = -9999;
@@ -113,14 +114,15 @@ void Vehicle::fixPassengerStatus(int nowTime) {
 /// <param name="getOffPsngr"></param>
 /// <param name="schedule"></param>
 /// <param name="decided"></param>
-void Vehicle::check_passengers(int nowTime, locReq stop, bool& exceeded, int& sumDelays, int& newOffset, int& newPickups, 
+void Vehicle::check_passengers(int& nowTime, locReq stop, bool& exceeded, int& currentWaits, int& sumDelays, int& newOffset, int& newPickups, 
     vector<int>& getOffPsngr, vector<int>& getOnsPsngr,
     vector<Request>& schedule, int& occupancy, bool decided) {
 
     for (int i = 0; i < passengers.size(); i++) {
         Request& req = passengers[i];
         if (req.status == Request::requestStatus::onBoard) {
-            if (nowTime - req.expectedOffTime > req.allowedDelay) {
+            int thisWait = nowTime - req.expectedOffTime;
+            if (thisWait > req.allowedDelay) {
                 exceeded = true;
                 return;
             }
@@ -137,19 +139,27 @@ void Vehicle::check_passengers(int nowTime, locReq stop, bool& exceeded, int& su
                 }
                 getOffPsngr.push_back(i);
             }
+            else if (thisWait > 0) {
+                currentWaits += thisWait;
+            }
         }
         else if (req.status == Request::requestStatus::waiting) {
-            if (nowTime - req.reqTime > req.allowedWait) {
-                exceeded = true;
-                return;
+            int thisWait = nowTime - req.reqTime;
+            if (thisWait > 0) {
+                if (thisWait > req.allowedWait) {
+                    exceeded = true;
+                    return;
+                }
+                currentWaits += thisWait;
             }
             if (req.start == stop.first && req.unique == stop.second) {
+                newPickups += occupancy*2;
                 if (++occupancy > max_capacity) {
                     exceeded = true;
                     return;
                 }
                 req.status = Request::requestStatus::onBoard;
-                int earliestArrivalAllowed = max(nowTime, req.reqTime);
+                int earliestArrivalAllowed = max(now_time, req.reqTime);
                 int timeDiff = earliestArrivalAllowed - nowTime;
                 if (timeDiff > 0) {
                     if (nowTime < 0) {
@@ -195,6 +205,22 @@ void Vehicle::clear_path() {
         this->scheduledPath.pop();
     }
 }
+
+void Vehicle::bring_online() {
+	this->offline = false;
+	this->availableSince = this->availableSince < 0 ? now_time : now_time;
+	//this->availableSince = now_time;
+	clear_path();
+}
+
+void Vehicle::take_offline() {
+	this->offline = true;
+	int startNode = this->scheduledPath.size() == 0 ? get_location() : this->scheduledPath.back().second;
+	if(vehicle_depot == startNode) return;
+	int beginTime = (get_num_passengers() == 0 || this->scheduledPath.size() == 0) ? getAvailableSince() : this->scheduledPath.back().first;
+	head_for(vehicle_depot, beginTime);
+}
+
 void Vehicle::head_for(int node, int departureTimeFromNode) {
     clear_path();
     if (this->location == node) {
@@ -252,7 +278,7 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
     //LOG only the stops on or before nowTime.
     const int startOfThisUpdate = this->availableSince;
     bool bSkipsThisTimestep = startOfThisUpdate > nowTime;
-    bool bLogStartingPoint = ((nowTime - time_step) < startOfThisUpdate) && (startOfThisUpdate <= nowTime) && startOfThisUpdate!= this->scheduledPath.front().first;
+    bool bLogStartingPoint = ((nowTime - time_step) < startOfThisUpdate) && (startOfThisUpdate <= nowTime) && (this->scheduledPath.size()>0 && startOfThisUpdate!= this->scheduledPath.front().first);
     iterable_queue<pair<int, int> > copy = this->scheduledPath;
     int time1 = -INF, time2 = -INF, node1 = -INF, node2 = -INF, id1= -INF, id2= -INF;
     while (!this->scheduledPath.empty() || bLogStartingPoint) {
@@ -300,8 +326,12 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
         bool bOffloaded = iterPsngr->scheduledOffTime <= nowTime;
         if (bNotYetOnboard) { // hasn't gotten on board
             iterPsngr->status = Request::requestStatus::waiting;
+			if(iterPsngr->scheduledOnTime <= nowTime + default_time_step){
+				newPassengers.push_back(*iterPsngr);
+			} else{
             #pragma omp critical(pushbackreq)
             newRequests.push_back(*iterPsngr);
+        }
         }
         else {
             if (bOffloaded) { // already got off
@@ -315,18 +345,13 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
     }
     this->passengers = newPassengers;
     refresh_status(nowTime);
-    //map: time, node, req index, on or off
-    std::map<int, std::vector<locReq>> onOffs;
-    for (int i = 0; i < this->passengers.size(); i++) {
-        const Request& thisReq = this->passengers[i];
-        onOffs[thisReq.scheduledOffTime].push_back(make_pair(thisReq.end, i));
-    }
 }
 
 void Vehicle::refresh_status(int time) {
     this->wasIdle = this->availableSince < time;
     this->availableSince = (this->offline || (this->availableSince < 0 && this->passengers.size() ==0)) ? this->availableSince : max(this->availableSince, time);
     this->timeToNextNode = this->availableSince - time;
+	
     this->available = this->offline ? false : this->availableSince < (time + time_step);
 }
 

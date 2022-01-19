@@ -224,7 +224,8 @@ void GPTree::init_dist_map() {
 		dist_map.reserve(max_node * (max_node - 1) / 2);
 		for (int i = 1; i <= max_node; i++) {
 			for (int j = i + 1; j <= max_node; j++) {
-				dist_map.push_back(search_cache(i - 1, j - 1));
+				vector<int> order;
+				dist_map.push_back(find_path(i - 1, j - 1,order));
 			}
 		}
 		std::ofstream out_file(DistMapFile, std::ofstream::binary);
@@ -1074,85 +1075,6 @@ std::pair<int, int> GPTree::find_path(const int S, const int T, vector<int>& ord
 	}
 	return std::pair<int, int>{ round(MIN/cost_scale_factor),min2 };
 }
-
-
-//Return the shortest path length of S-T, and store the scheme of nodes passing along the way into the order array
-std::pair<int, int> GPTree::find_path_simple(const int S, const int T, vector<int>& order)
-{
-	order.clear();
-	if (S == T)
-	{
-		order.push_back(S);
-		order.push_back(T);
-		return std::pair<int, int>{0,0};
-	}
-
-	int i, j, k, k2, p;
-
-	int LCA, x = id_in_node[S], y = id_in_node[T];
-	LCA = find_LCA(x, y);
-	vector<int>dist[2], dist_, dist2[2],dist2_;
-	dist[0].push_back(0);
-	dist[1].push_back(0);
-	dist2[0].push_back(0);
-	dist2[1].push_back(0);
-
-
-	//Naive G-Tree calculation
-	for (int t = 0; t < 2; t++)
-	{
-		if (t == 0)p = x;
-		else p = y;
-		while (node[p].father != LCA)
-		{
-			p = node[p].father;
-		}
-		if (t == 0)x = p;
-		else y = p;
-	}
-
-	vector<int>id[2];//The border sequence number of the child node's border in the LCA
-	for (int t = 0; t < 2; t++)
-	{
-		if (t == 0)p = x;
-		else p = y;
-		for (i = j = 0; i < (int)dist[t].size(); i++)
-			if (node[p].border_in_father[i] != -1)
-			{
-				id[t].push_back(node[p].border_in_father[i]);
-				dist[t][j] = dist[t][i];
-				dist2[t][j] = dist2[t][i];
-				j++;
-			}
-		while (dist[t].size() > id[t].size()) { 
-			dist[t].pop_back(); 
-			dist2[t].pop_back();
-		}
-	}
-	//Final match
-	int MIN = INF;
-	int min2 = INF;
-	int S_ = -1, T_ = -1;// The number of the optimal path connected by borders in LCA
-	for (i = 0; i < (int)dist[0].size(); i++)
-		for (j = 0; j < (int)dist[1].size(); j++)
-		{
-			k = dist[0][i] + dist[1][j] + node[LCA].dist.a[id[0][i]][id[1][j]];
-			k2 = dist2[0][i] + dist2[1][j] + node[LCA].dist2.a[id[0][i]][id[1][j]];
-			if (k < MIN)
-			{
-				MIN = k;
-				min2 = k2;
-				S_ = id[0][i];
-				T_ = id[1][j];
-			}
-		}
-	if (MIN < INF)//Existing path, restoring path
-	{
-		find_path_border(LCA, S_, T_, order, 0);
-	}
-	return std::pair<int,int>{ round(MIN / cost_scale_factor),min2};
-}
-
 
 //Return the node path of the border numbered from S to T in node x, store it in vector<int>, 
 //push the part S+1~T except the starting point S to the end of v, 

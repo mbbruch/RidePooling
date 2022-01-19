@@ -40,9 +40,14 @@ int main(int argc, char* argv[]) {
         print_line(outDir, logFile, string_format("Gurobi exception code: %d.", e.getErrorCode()));
         print_line(outDir, logFile, "Gurobi exception message: " + e.getMessage());
     }
-
-	omp_set_num_threads(6);
+	//int value1 = omp_get_max_threads();
+	//print_line(outDir, logFile, string_format("Default max threads: %d.", value1));
+	//omp_set_num_threads(1);
+	//print_line(outDir, logFile, string_format("New max threads: %d.", omp_get_max_threads()));
+	//omp_set_num_threads(value1);
+	//print_line(outDir, logFile, string_format("Fixed max threads: %d.", omp_get_max_threads()));
     //env->set(GRB_IntParam_Threads, 4);
+	time_step = 300;
     now_time = -time_step; //250200 -time_step;
     total_reqs = served_reqs = these_reqs = these_served_reqs = 0;
     total_dist = unserved_dist = raw_dist = 0;
@@ -66,9 +71,8 @@ int main(int argc, char* argv[]) {
     read_vehicles(vehFile.c_str(), vehicles);
     print_line(outDir, logFile, "Vehicles read in");
 
-    RTVGraph::rebalance_for_demand_forecasts(env, vehicles, std::vector<Request>(), 0);
-
-    std::pair<int, int> asdf = treeCost.dist_map[0];
+	std::vector<Request> temp;
+    RTVGraph::rebalance_for_demand_forecasts(env, vehicles, temp, 0);
 
     bool hasMore = false;
     Request tail;
@@ -80,17 +84,20 @@ int main(int argc, char* argv[]) {
     std::vector<Request> beforesolveUns;
     std::vector<Vehicle> beforerebalance;
     map<int, int> reqCounter;
-    FILE* in = get_requests_file(reqFile.c_str());
-    //FILE* in = get_requests_file(std::string(baseInDir + "requests_with_dist.csv").c_str());
+    FILE* in = get_requests_file(reqFile.c_str());    
+
+    //std::string inFile = baseInDir + "requests_with_dist.csv";
+    //FILE* in = get_requests_file(inFile.c_str());    
     //update_requests_with_dist(in);
     while (true) {
+		time_step = 300;
         auto beforeTime = std::chrono::system_clock::now();
         travel_time = 0;
         travel_max = 0;
         travel_cnt = 0;
         these_reqs = 0;
         now_time += time_step;
-        print_line(outDir, logFile, string_format("Timestep: %d", now_time));
+        print_line(outDir, logFile, string_format("now_time: %d, time_step: %d, default_time_step: %d.", now_time, time_step, default_time_step));
 
         requests.clear();
         if (hasMore) {
@@ -109,8 +116,8 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        print_line(outDir, logFile, "Reading requests");
-        if (read_requests(in, requests, now_time + time_step)) {
+        print_line(outDir, logFile, string_format("Reading requests from %d to %d, on top of %d unserved and %d requests.", now_time, now_time+default_time_step, unserved.size(), requests.size()));
+        if (read_requests(in, requests, now_time + default_time_step)) {
             //Note: the read_requests code reads one request beyond now_time+time_step (unless it returns false)
             tail = requests.back();
             requests.pop_back();
@@ -256,17 +263,18 @@ int main(int argc, char* argv[]) {
             }
         }
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
+	print_ram(outDir,string_format("%d_before_solve", now_time));
         print_line(outDir,logFile,string_format("Solving time = %f", elapsed_seconds.count()));
         beforerebalance = vehicles;
 		beforeTime = std::chrono::system_clock::now();
         RTV->rebalance(env, vehicles, unserved);
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
+	print_ram(outDir,string_format("%d_before_rebalance", now_time));
+
         print_line(outDir,logFile,string_format("Rebalancing time = %f", elapsed_seconds.count()));
-        for (int i = 0; i < vehicles.size(); i++) {
-            if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
-                int x = 5;
-            }
-        }
+	print_ram(outDir,string_format("%d_after_rebalance", now_time));
+
+		
         delete RV;
         delete RTV;
 

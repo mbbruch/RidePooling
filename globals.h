@@ -14,6 +14,7 @@
 #include <cstring>
 #include <string>
 #include <chrono>
+#include <random>
 using namespace std;
 extern int now_time;
 extern int total_reqs, served_reqs, these_reqs, these_served_reqs;
@@ -29,12 +30,15 @@ extern double travel_max;
 extern int max_vehicle;
 extern int vehicle_depot;
 
+static int time_step = 300;
+static const int default_time_step = 300;
 static const int max_capacity = 2;
 static const int max_trip_size = 8;
-static const int fleet_size = 2;
-static const double cars_needed_per_trip_per_30 = 0.75;
-static const int req_per_window = 100;
+static const int fleet_size = 25000;
+static const double cars_needed_per_trip_per_30 = 2;
+static const int req_per_window = 1000;
 static const std::chrono::time_point startTime = std::chrono::system_clock::now();
+static std::chrono::time_point lastTimeCheck = std::chrono::system_clock::now();
 static const std::string baseDir = "C:/Code_Projects/RidePooling/";
 static const std::string city = "austin";
 static const std::string costs = "private";
@@ -56,11 +60,11 @@ static const int numAreas = 17;
 static const bool RevE = true;//false represents a directed graph，true Represents an undirected graph read edge copy reverse an edge
 static const int Naive_Split_Limit = 33;//The sub-graph size is smaller than this value
 static const int INF = 0x3fffffff;
+static const int max_node = 10016; //264346;
 
 static const std::string stdOutput = "CONOUT$";
 
 extern int time_step;
-extern const int max_node;
 extern const int max_wait_sec;
 extern const int max_delay_sec;
 extern const int velocity; // dm/s
@@ -155,7 +159,9 @@ public:
 //typedef std::unordered_set<std::unordered_set<int>, MyHash> set_of_uos;
 typedef std::pair<int, int> locReq;
 typedef boost::container::flat_set<locReq> targetSet;
-typedef std::vector<pair<int, int>> stMap;
+typedef std::vector<std::pair<int, int>> stMap;
+
+//typedef tbb::concurrent_unordered_set<int> uosTBB;
 typedef uos uosTBB;
 typedef std::unordered_map<uos, pair<int, uos>, MyHash  > map_of_uos;
 typedef std::unordered_map<pair<int, int>, int, PairHash> map_of_pairs;

@@ -53,7 +53,6 @@ struct GPTree
 	std::pair<int, int> get_dist(int S, int T);
 	std::pair<int, int> search_cache(int S, int T, int bound = INF);
 	std::pair<int, int> find_path(const int S, const int T, vector<int>& order);
-	std::pair<int, int> find_path_simple(const int S, const int T, vector<int>& order);
 	int real_border_number(int x);
 	const void find_path_border(int x, int S, int T, vector<int>& v, int rev);
 };

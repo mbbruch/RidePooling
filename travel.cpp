@@ -27,18 +27,16 @@ using namespace std;
 /// <param name="nowDelays">Current cost (0 when called from travel)</param>
 /// <param name="beginTime">Current time (nowTime + vehicle's timeToNextNode when called from travel)</param>
 /// <param name="decided">false=just determine cost; true=assign the path (passed through from travel)</param>
-void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
+void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
     targetSet& target, map<locReq, set<locReq> >& src_dst,
     vector<pair<int, locReq> >& path, vector<Request>& schedule,
-    int occupancy,
-    int travelled, int nowDelays, int nowCost, int& beginTime, int beginOffset, const int nowTime, bool decided, bool observeReqTimeLimits, bool bFeasibilityCheck) {
+    const int beginOccupancy, const int beginTotalCost, const int beginTime, const int beginOffset, 
+    const bool decided, const bool observeReqTimeLimits, const bool bFeasibilityCheck) {
 
     /* If there's nowhere the car still needs to go, finished!*/
     if (target.size() == 0) {
-        if (nowCost < ansCost) {
-            ansDelays = nowDelays;
-            ansCost = nowCost;
-            ansTravelled = travelled;
+        if (beginTotalCost < ansCost) {
+            ansCost = beginTotalCost;
             ansOffset = beginOffset;
             if (decided) {
                 ansPath = path;
@@ -48,9 +46,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         return;
     }
 
-    int newDelays = nowDelays;
-    int newOffset = beginOffset;
-    int prevLoc = vehicle.get_location(); //TODO is this "NextNode" or current location?
+    const int prevLoc = vehicle.get_location();
     /* Initialize tmpTarget to be all elements in (integer-sorted) set */
     vector<locReq> tmpTarget(target.begin(), target.end());
     vector<int> getOnsReq, getOffsReq, getOnsPsngr, getOffsPsngr; //request index, time
@@ -68,12 +64,16 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         getOnsPsngr.clear();
         getOffsReq.clear();
         getOffsPsngr.clear();
-
+        int occupancy = beginOccupancy;
+        int newTotalCost = beginTotalCost;
+        int newOffset = beginOffset;
+        int newPickups = 0;
+        int newDelays = 0;
+        int currentWaits = 0;
         /* Get the time from current location to node*/
         int interDist = 0;
-        int newCost = INF;
         std::pair<int,int> result = treeCost.get_dist(prevLoc, node.first);
-        newCost = result.first;
+        newTotalCost += result.first;
         interDist += result.second;
         int newTime = beginTime + ceil(static_cast<double>(interDist) / velocity * 1.0);
         /* If it's impossible to get to any of the request pickup spots before their max wait time, 
@@ -82,19 +82,27 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
         if (observeReqTimeLimits) {
             for (int i = 0; i < numReqs; i++) {
                 // exceed max waiting time
-                if (reqs[i]->status == Request::requestStatus::waiting && newTime > reqs[i]->reqTime + reqs[i]->allowedWait) {
-                    exceeded = true;
-                    break;
+                int thisWait = newTime - reqs[i]->reqTime;
+                if (reqs[i]->status == Request::requestStatus::waiting && thisWait > 0) {
+                    if (thisWait > reqs[i]->allowedWait) {
+                        exceeded = true;
+                        break;
+                    }
+                    currentWaits += (newTime - reqs[i]->reqTime);
                 }
             }
         }
-
+        if (newTotalCost + delayPenalty * (newDelays + currentWaits) + pickupPenalty * newPickups > ansCost) {
+            exceeded = true;
+        }
         /* Set a flag for whether this node in tmpTarget has already been visited*/
         bool visited = false;
-        for (int m = 0; m < path.size(); m++) {
-            if (path[m].second == node) {
-                visited = true;
-                break;
+        if (!exceeded) {
+            for (int m = 0; m < path.size(); m++) {
+                if (path[m].second == node) {
+                    visited = true;
+                    break;
+                }
             }
         }
 
@@ -108,7 +116,8 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             for (int i = 0; i < numReqs; i++) {
                 if (reqs[i]->status == Request::requestStatus::onBoard) {
                     // total delay time exceeded
-                    if (observeReqTimeLimits &&  (newTime - reqs[i]->expectedOffTime > reqs[i]->allowedDelay)) {
+                    int thisWait = newTime - reqs[i]->expectedOffTime;
+                    if (observeReqTimeLimits && (thisWait > reqs[i]->allowedDelay)) {
                         exceeded = true;
                         break;
                     }
@@ -126,8 +135,14 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                         // record who got off
                         getOffsReq.push_back(i);
                     }
+                    else if(thisWait > 0){
+                        currentWaits += thisWait;
+                    }
                 }
             }
+        }
+        if (newTotalCost + delayPenalty * (newDelays + currentWaits) + pickupPenalty * newPickups > ansCost) {
+            exceeded = true;
         }
 
         /* If this node in tmpTarget is not already visited AND is a get-on node: 
@@ -147,12 +162,13 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                 }
                 for (int i = 0; i < numReqs; i++) {
                     if (reqs[i]->start == node.first && reqs[i]->unique ==node.second && reqs[i]->status==Request::requestStatus::waiting) {
+                        newPickups += occupancy * 2;
                         if (++occupancy > max_capacity) {
                             exceeded = true;
                             break;
                         }
                         reqs[i]->status = Request::requestStatus::onBoard;
-                        int earliestArrivalAllowed = max(nowTime, reqs[i]->reqTime);
+                        int earliestArrivalAllowed = max(now_time, reqs[i]->reqTime);
                         int timeDiff = earliestArrivalAllowed - newTime;
                         if (timeDiff > 0) {
                             if (newTime < 0) {
@@ -165,9 +181,13 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                         }
                             // record who got on
                         getOnsReq.push_back(i);
+                        break;
                     }
                 }
             }
+        }
+        if (newTotalCost + delayPenalty * (newDelays + currentWaits) + pickupPenalty * newPickups > ansCost) {
+            exceeded = true;
         }
 
         /* For each preexisting passenger in the vehicle, IF the request is onBoard:
@@ -180,11 +200,10 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
                 e. add the request's delay time to newDelays
          */
         if (!visited && !exceeded) {
-            int newPickups = 0;
-            vehicle.check_passengers(newTime, node, exceeded, newDelays, newOffset, newPickups,
+            vehicle.check_passengers(newTime, node, exceeded, currentWaits, newDelays, newOffset, newPickups,
                 getOffsPsngr, getOnsPsngr, schedule, occupancy, decided);
-            newCost = newCost + newPickups * pickupPenalty + newDelays * delayPenalty;
-            if (newCost >= ansCost) {
+            newTotalCost = newTotalCost + newPickups * pickupPenalty + newDelays * delayPenalty;
+            if (newTotalCost + delayPenalty * currentWaits >= ansCost) {
                 exceeded = true;
             }
         }
@@ -194,9 +213,9 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], int numReqs,
             target.erase(node);
             vehicle.set_location(node.first);
            
-            dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancy, travelled + interDist, newDelays, newCost, newTime, newOffset, nowTime, decided, observeReqTimeLimits, bFeasibilityCheck);
+            dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancy, newTotalCost, newTime, newOffset, decided, observeReqTimeLimits, bFeasibilityCheck);
 
-            if (bFeasibilityCheck && ansTravelled != -1) {
+            if (bFeasibilityCheck && ansCost != INF) {
                 return;
             }
             vehicle.set_location(prevLoc);
@@ -264,9 +283,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary
     vehicle.insert_targets(target, src_dst, beginTime);
 
-    ansDelays = INF;
     ansCost = INF;
-    ansTravelled = -1;
     ansSchedule.clear();
 
     vector<pair<int, locReq> > path;
@@ -280,8 +297,9 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
     */
     int occupancyStart = vehicle.getOccupancyAt(beginTime);
     assert(!vehicle.offline || bFeasibilityCheck);
-    dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancyStart, 0, 0, 0,
-        beginTime, 0, now_time, decided, observeReqTimeLimits, bFeasibilityCheck); //todo prob add offset, "this is how much to offset"
+    dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, 
+        occupancyStart, 0, beginTime, 0, 
+        decided, observeReqTimeLimits, bFeasibilityCheck);
 
     if (!decided) {
         for (int i = 0; i < vehicle.get_num_passengers(); i++) {
@@ -289,7 +307,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
         }
     }
     
-    if (ansTravelled >= 0) {
+    if (ansCost != INF) {
         if (decided) {
             beginTime += ansOffset;
             vector<int> order;
@@ -390,7 +408,6 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
             // printf("%d, ", ansPath[i]);
         // }
         // printf("\n");
-        // printf("%d\n", ansTravelled);
         return ansCost;
     } else {
         clock_t endClock = clock();

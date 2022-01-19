@@ -75,7 +75,6 @@ class RTVGraph {
     void serialize_current_combos();
     void deserialize_current_combos();
     void deserialize_valid_trips();
-    void sort_edges();
 
     void greedy_assign_same_trip_size(
 	    vector<vector<pair<int, pair<int,int>> >::iterator>& edgeIters,
@@ -83,16 +82,18 @@ class RTVGraph {
         vector<int>& tIdxes,
         set<int>& assignedRIds, set<int>& assignedVIdxes,
         GRBVar** epsilon,
-        std::map<int, map<int, int>>& lookupRtoT
+        std::map<int, map<int, int>>& lookupRtoT,
+		unordered_map<int,int>& validTripReverseLookup
     );
 
 public:
     RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>& requests);
 
-    void rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, bool bEquityVersion = false);
+    void rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
     void static update_unserved_from_rebalancing(vector<Request>& unserved, uos& newlyServed);
     void static rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
     void static rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
+    void static rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, int now_time);
     void static rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, int nowTime, bool bEquityVersion = false);
 	void prune();
     void solve(GRBEnv* env,

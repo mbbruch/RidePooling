@@ -212,7 +212,6 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
     these_reqs = 0;
     these_served_reqs = 0;
     int counter = 0;
-    toTime = INF;
     while (num != EOF ) {
         num = fscanf(in, "%d,%d,%d,%d\n", &reqTime, &start, &end, &dist);
         if (num != EOF) {
@@ -226,20 +225,37 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
 				/*
                 std::vector<int> order;
 				std::vector<int> suborder;
+				std::vector<int> dists1;
+				std::vector<int> dists2;
+				std::vector<int> dists3;
                 pair<int,int> result1 = treeCost.get_dist(start, end);
-                pair<int,int> result2 = treeCost.search_cache(start-1, end-1);
+				pair<int,int> result3 = treeCost.find_path(start-1, end-1, order);
+				int pathDist1 = 0;
+				int pathDist2 = 0;
+				int pathDist3 = 0;
+				for(int i = 1; i < order.size(); i++){
+					int thisDist1 = treeCost.get_dist(order[i - 1]+1, order[i]+1).second;
+					int thisDist3 = treeCost.find_path(order[i - 1], order[i],suborder).second;
+                    pathDist1 += thisDist1;
+                    pathDist3 += thisDist3;
+					dists1.push_back(thisDist1);
+					dists3.push_back(thisDist3);
+				}
+				*/
+/*				if(counter==0 | (result1.second != dist | result3.second != dist | result1.second != result3.second)){
+					print_line(outDir,logFile, string_format("Counter = %d, result1.dist = %d,result3.dist = %d, trip.dist = %d, path.dist = %d,%d.",counter,result1.second,result3.second,dist,pathDist1,pathDist3));	
+					for(int i = 1; i < order.size(); i++){
+						print_line(outDir,logFile, string_format("Segment %d from %d to %d comparison:%d vs %d.",i,order[i-1],order[i],dists1[i-1],dists3[i-1]));
+					}	
+				}*/
+				/*
+				std::vector<int> suborder;
                 pair<int,int> result = treeCost.find_path(start-1, end-1, order);
                 order[0] += 1;
 				print_line(outDir, logFile, string_format("%d, %d, %d, %d, %d, %d.", result1.first, result2.first, result.first, result1.second, result2.second, result.second));
                 
                 print_line(outDir, logFile, string_format("Request distance from %d to %d: %f dm (%f minutes).", r.start, r.end, result.second, (double)(r.expectedOffTime - r.reqTime)/60.0));
-                for(int i = 1; i < order.size(); i++){
-                    order[i] += 1;
-                    int dist1 = treeCost.get_dist(order[i - 1], order[i]).second;
-                    int dist2 = treeCost.find_path(order[i - 1]-1, order[i]-1, suborder).second;
-                    int dist3 = treeCost.search_cache(order[i - 1]-1, order[i]-1).second;
-					print_line(outDir, logFile, string_format("Order: %d to %d: %d dm per get_dist, %d per search_cache, %d per find_path.",order[i - 1], order[i],dist1, dist3, dist2));
-                }
+
 */
                 //print_line(outDir, logFile, string_format("Request distance: %d.", r.expectedOffTime - r.reqTime));
                 raw_dist += r.shortestDist;
@@ -250,6 +266,7 @@ bool read_requests(FILE*& in, vector<Request>& requests, int toTime) {
                 }
                 if (++counter >= req_per_window) {
                     toTime = reqTime;
+					time_step = toTime - now_time;
                 }
             }
         }
@@ -322,6 +339,7 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
     std::filesystem::create_directories(outDir);
     std::filesystem::create_directories(outDir + "GurobiLogs/");
     std::filesystem::create_directories(outDir + "Routes/");
+    std::filesystem::create_directories(outDir + "VehicleStatuses/");
     std::filesystem::create_directories(outDir + "Pickups/");
     std::filesystem::create_directories(outDir + "Misc/");
     std::filesystem::create_directories(outDir + "Misc/Trips/");
@@ -332,6 +350,26 @@ void setupOutfiles(const std::string& outDir, const std::string& outFilename){
     ofs.open(outDir + outFilename, std::ofstream::out | std::ofstream::app);
     ofs << "NowTime,CPUTime,TotalReqs,ServedReqs,TotalDist,UnservedDist,RawDist,WaitTime,Pooled1,Pooled2,Pooled3,Pooled4,DisconnectedCars\n";
     ofs.close();
+	
+	ofs.open(outDir + "VehicleStatuses/psgrCounter.csv", std::ofstream::out | std::ofstream::app);
+	ofs << "time,val,count\n";
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/waitingCounter.csv", std::ofstream::out | std::ofstream::app);
+	ofs << "time,val,count\n";
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/onBoardCounter.csv", std::ofstream::out | std::ofstream::app);
+	ofs << "time,val,count\n";
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/areaCounter.csv", std::ofstream::out | std::ofstream::app);
+	ofs << "time,val,count\n";
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/startOccupancy.csv", std::ofstream::out | std::ofstream::app);
+	ofs << "time,val,count\n";
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/endOccupancy.csv", std::ofstream::out | std::ofstream::app);
+	ofs << "time,val,count\n";
+	ofs.close();
+
 }
 
 void print_stats(const std::string& outDir, const std::string& outFilename) {
@@ -350,9 +388,11 @@ void print_stats(const std::string& outDir, const std::string& outFilename) {
 void print_line(const std::string& outDir, const std::string& outFilename, const std::string& message) {
 	auto end = std::chrono::system_clock::now();
 	std::chrono::duration<double> elapsed_seconds = end-startTime;
+	std::chrono::duration<double> elapsed_seconds_2 = end-lastTimeCheck;
     std::ofstream ofs;
     ofs.open(outDir + outFilename, std::ofstream::out | std::ofstream::app);
-    ofs << std::to_string(elapsed_seconds.count()) + ": " + message + "\n";
+    ofs << std::to_string(elapsed_seconds.count()) + ": " + std::to_string(elapsed_seconds_2.count()) + ": "+ message + "\n";
+	lastTimeCheck = end;
     ofs.close();
 }
 

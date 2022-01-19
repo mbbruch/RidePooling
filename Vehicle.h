@@ -11,7 +11,6 @@ using namespace std;
 
 class Vehicle {
     int location;
-    bool available;
     int availableSince;
 
 private:
@@ -21,6 +20,7 @@ private:
 public:
     bool offline;
     vector<Request> passengers;
+    bool available;
     iterable_queue<pair<int, int> > scheduledPath;
     Vehicle();
     Vehicle(int location);
@@ -33,7 +33,7 @@ public:
     int get_num_passengers() const;
     void fixPassengerStatus(int nowTime);
     void insert_targets(targetSet& target, map<locReq, set<locReq> >& src_dst, int currentTime);
-    void check_passengers(int nowTime, locReq stop, bool& exceeded, int& sumDelays, int& newOffset, int& newPickups,
+    void check_passengers(int& nowTime, locReq stop, bool& exceeded, int& currentWaits, int& sumDelays, int& newOffset, int& newPickups,
         vector<int>& getOffPsngr, vector<int>& getOnsPsngr,
         vector<Request>& schedule, int& occupancy, bool decided);
     int getOccupancyAt(int currentTime);
@@ -42,6 +42,8 @@ public:
         vector<Request>& schedule, int newOffset, bool decided);
     void set_passengers(vector<Request>& psngrs);
     void clear_path();
+	void take_offline();
+	void bring_online();
     void refresh_status(int time);
     void head_for(int node, int departureTimeFromNode);
     void update(int nowTime, vector<Request>& newRequests, int idx);
