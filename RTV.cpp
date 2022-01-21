@@ -547,14 +547,13 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                     reqs[j] = &copiedRequests[j];
                 }
 
-                Vehicle& vehicle = vehicles[vId];
+                Vehicle vCopy = vehicles[vId];
                 TravelHelper th;
-                int cost = th.travel(vehicle, reqs, tripSize, false);
+                int cost = th.travel(vCopy, reqs, tripSize, false);
                 if (cost >= 0) {
                     int tripIdx = getTIdx(thisSizeVec[i].requests);
                     theseValidTripCosts.push_back(make_pair(vIdx, make_pair(tripIdx, cost)));
                     addedTrips[i] = 1;
-                    //add_edge_trip_vehicle(thisSizeVec[i].requests, vIdx, cost);
                     theseInclusions[m].second.insert(i);
                 }
             }
@@ -595,11 +594,10 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                     reqs[j] = &copiedRequests[j];
                 }
 
-                Vehicle& vehicle = vehicles[vId];
+                Vehicle vCopy = vehicles[vId];
                 TravelHelper th;
-                int cost = th.travel(vehicle, reqs, tripSize, false);
+                int cost = th.travel(vCopy, reqs, tripSize, false);
                 if (cost >= 0) {
-                    //add_edge_trip_vehicle(thisSizeVec[it->first].requests, vIdx, cost);
                     int tripIdx = getTIdx(thisSizeVec[it->first].requests);
                     theseValidTripCosts.push_back(make_pair(vIdx, make_pair(tripIdx, cost)));
                     addedTrips[it->first] = 1;
@@ -790,13 +788,15 @@ void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles,
     std::vector<int> vAssignmentCounts(idleVIds.size(), 0);
     std::vector<std::tuple<int, int, int>> allCosts(idleCnt * unservedCnt, std::make_tuple<int, int, int>(-1, -1, -1));
     int i = 0;
-#pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(i) shared(unserved, vehicles, idleVIds, allCosts, idleCnt, unservedCnt)
+    #pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(i) shared(unserved, vehicles, idleVIds, allCosts, idleCnt, unservedCnt)
     for (i = 0; i < idleCnt; i++) {
+        Vehicle vCopy = vehicles[idleVIds[i]];
         for (int j = 0; j < unservedCnt; j++) {
+            Request copied = unserved[j];
             TravelHelper th;
             Request* reqs[1];
-            reqs[0] = &unserved[j];
-            int cost = th.travel(vehicles[idleVIds[i]], reqs, 1, false, false);
+            reqs[0] = &copied;
+            int cost = th.travel(vCopy, reqs, 1, false, false);
             if (cost != -1) {
                 int idx = i * unservedCnt + j;
                 std::get<0>(allCosts[idx]) = cost;
@@ -880,6 +880,7 @@ void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles,
         model.optimize();
         std::string part1 = std::to_string(model.get(GRB_IntAttr_Status));
         std::string part2 = std::to_string((int)std::round(model.get(GRB_DoubleAttr_Runtime)));
+        std::ofstream assignments;
         for (int i = 0; i < allCosts.size(); i++) {
             double val = y[i].get(GRB_DoubleAttr_X);
             if (val > 1.0 + minimal || val < 1.0 - minimal) continue;
@@ -887,6 +888,9 @@ void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles,
             int rIdx = std::get<2>(allCosts[i]);
             Request* reqs[1];
             reqs[0] = &unserved[rIdx];
+            assignments.open(outDir + "Misc/Rebalance_Prune_Fix_Vehs.csv", std::ofstream::out | std::ofstream::app);
+            assignments << to_string(now_time) + "," + to_string(vIdx) + "," + to_string(reqs[0]->unique) + "\n";
+            assignments.close();
             TravelHelper th;
             if (-1 == th.travel(vehicles[vIdx], reqs, 1, true, false)) continue;
             newlyServed.emplace(rIdx);
@@ -964,9 +968,9 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
                     Request* reqs[1];
                     Request reqCopy = unserved[j];
                     Vehicle vehCopy = vehicles[idleVIds[i]];
-                    reqs[0] = &unserved[j];
+                    reqs[0] = &reqCopy;
                     TravelHelper th;
-                    int cost = th.travel(vehicles[idleVIds[i]], reqs, 1, false, false);
+                    int cost = th.travel(vehCopy, reqs, 1, false, false);
                     if (cost != -1) {
                         bAdded = true;
                         objectiveMain += y[i][j] * cost;
@@ -1336,7 +1340,7 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
             if (bEquityVersion) {
                 //Equity: maximize the minimum ratio of cars to demand
                 model3.addConstr(objectiveCnt <= aEdgesReward[j] + minimal);
-                model3.addConstr(aEdgesReward[j] <= aEdgesCnt[j] / area_demand[j] * cars_needed_per_trip_per_30 + minimal);
+                model3.addConstr(aEdgesReward[j] <= aEdgesCnt[j] / (area_demand[j] * cars_needed_per_trip_per_30 + minimal));
                 model3.addConstr(aEdgesReward[j] <= 1.0 + minimal);
             }
             else {
@@ -1400,7 +1404,12 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
                     }
 
                     assignedCnt++;
-                    if (vehicles[thisId].get_num_passengers() == 0) vehicles[thisId].clear_path();
+                    if (vehicles[thisId].get_num_passengers() == 0) {
+                        vehicles[thisId].clear_path();
+                    }
+                    else {
+                        int x = 5;
+                    }
                     int beginTime = (vehicles[thisId].get_num_passengers() == 0 || vehicles[thisId].scheduledPath.size() == 0) ? vehicles[thisId].getAvailableSince() : vehicles[thisId].scheduledPath.back().first;
                     int passedDist = 0;
                     vector<pair<int, int> > finalPath;

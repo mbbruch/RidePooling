@@ -89,18 +89,7 @@ int Vehicle::getOccupancyAt(int currentTime) {
 
 void Vehicle::fixPassengerStatus(int nowTime) {
     for (int i = 0; i < passengers.size(); i++) {
-        Request& thisReq = passengers[i];
-        if (thisReq.scheduledOnTime >= nowTime) {
-            thisReq.status = Request::requestStatus::waiting;
-        }
-        else {
-            if (thisReq.scheduledOffTime < nowTime) {
-                thisReq.status = Request::requestStatus::droppedOff;
-            }
-            else {
-                thisReq.status = Request::requestStatus::onBoard;
-            }
-        }
+        passengers[i].fixStatus(nowTime);
     }
 }
 
@@ -120,7 +109,7 @@ void Vehicle::check_passengers(int& nowTime, locReq stop, bool& exceeded, int& c
 
     for (int i = 0; i < passengers.size(); i++) {
         Request& req = passengers[i];
-        if (req.status == Request::requestStatus::onBoard) {
+        if (req.getStatus() == Request::requestStatus::onBoard) {
             int thisWait = nowTime - req.expectedOffTime;
             if (thisWait > req.allowedDelay) {
                 exceeded = true;
@@ -128,9 +117,12 @@ void Vehicle::check_passengers(int& nowTime, locReq stop, bool& exceeded, int& c
             }
             if (req.end == stop.first && req.unique == stop.second) {
                 occupancy--;
-                req.status = Request::requestStatus::droppedOff;
+                req.setStatus(Request::requestStatus::droppedOff);
                 if (decided) {
                     req.scheduledOffTime = nowTime;
+                    if (req.scheduledOnTime == -1) {
+                        int x = 5;
+                    }
                     schedule.push_back(req);
                 }
                 int addlDelay = nowTime - req.expectedOffTime;
@@ -143,7 +135,7 @@ void Vehicle::check_passengers(int& nowTime, locReq stop, bool& exceeded, int& c
                 currentWaits += thisWait;
             }
         }
-        else if (req.status == Request::requestStatus::waiting) {
+        else if (req.getStatus() == Request::requestStatus::waiting) {
             int thisWait = nowTime - req.reqTime;
             if (thisWait > 0) {
                 if (thisWait > req.allowedWait) {
@@ -158,7 +150,7 @@ void Vehicle::check_passengers(int& nowTime, locReq stop, bool& exceeded, int& c
                     exceeded = true;
                     return;
                 }
-                req.status = Request::requestStatus::onBoard;
+                req.setStatus(Request::requestStatus::onBoard);
                 int earliestArrivalAllowed = max(now_time, req.reqTime);
                 int timeDiff = earliestArrivalAllowed - nowTime;
                 if (timeDiff > 0) {
@@ -180,7 +172,7 @@ void Vehicle::reverse_passengers(const vector<int>& getOffPsngr, const vector<in
 
     size_t offCnt = getOffPsngr.size();
     for (auto it = getOffPsngr.begin(); it != getOffPsngr.end(); ++it) {
-        passengers[*it].status = Request::requestStatus::onBoard;
+        passengers[*it].setStatus(Request::requestStatus::onBoard);
         occupancy++;
     }
     if (decided) {
@@ -191,7 +183,7 @@ void Vehicle::reverse_passengers(const vector<int>& getOffPsngr, const vector<in
     }
     size_t onCnt = getOnPsngr.size();
     for (auto it = getOnPsngr.begin(); it != getOnPsngr.end(); ++it) {
-        passengers[*it].status = Request::requestStatus::waiting;
+        passengers[*it].setStatus(Request::requestStatus::waiting);
         occupancy--;
     }
 }
@@ -222,7 +214,7 @@ void Vehicle::take_offline() {
 }
 
 void Vehicle::head_for(int node, int departureTimeFromNode) {
-    clear_path();
+    if(get_num_passengers() == 0) clear_path();
     if (this->location == node) {
         this->scheduledPath.push(make_pair(departureTimeFromNode, node));
         return;
@@ -255,14 +247,21 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
     }
     int counter = 0;
     for (int i = 0; i < this->passengers.size(); i++) {
-        if (this->passengers[i].unique == 5 && now_time == 3600) {
-            counter++;
+        if (!this->location == this->passengers[i].end) {
+            bool bFound = false;
+            for (auto it = this->scheduledPath.begin(); it != this->scheduledPath.end(); it++) {
+                if (it->first == this->passengers[i].scheduledOffTime) {
+                    bFound = true;
+                    break;
+                }
+            }
+            if (!bFound) counter++;
         }
     }
-    if (counter == 1) {
+    if (counter > 0) {
         int x = 5;
     }
-    std::ofstream routes, pickups, requestDistances, thisveh;
+    std::ofstream routes, pickups, requestDistances, thisveh, thesePsgrs;
     if (!this->scheduledPath.empty()) {
         routes.open(outDir + "Routes/" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
         pickups.open(outDir + "Pickups/" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
@@ -272,8 +271,23 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
             thisveh << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "," + "\n";
         }
         thisveh.close();
+        thesePsgrs.open(outDir + "Misc/manifest_" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
+        for (int i = 0; i < passengers.size(); i++) {
+            thesePsgrs << to_string(now_time) + "," + to_string(passengers[i].unique) + "," + 
+                to_string(passengers[i].start) + "," + to_string(passengers[i].end) + "," +
+                to_string(passengers[i].reqTime) + "," + to_string(passengers[i].expectedOffTime) + "," + to_string((int)passengers[i].getStatus()) + "," +
+                to_string(passengers[i].scheduledOnTime) + "," + to_string(passengers[i].scheduledOffTime) + "\n";
+        }
+        thesePsgrs.close();
     }
 
+    /*
+    std::ofstream rebalances,
+        rebalances.open(outDir + "Misc/rebalances_" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
+    rebalances << to_string(now_time) + "," + to_string(passengers[i].unique) + "," + to_string((int)passengers[i].status) + "," +
+        to_string(passengers[i].scheduledOnTime) + "," + to_string(passengers[i].scheduledOffTime) + "\n";
+    rebalances.close();
+    */
     //MOVE car to first stop on or after nowTime.
     //LOG only the stops on or before nowTime.
     const int startOfThisUpdate = this->availableSince;
@@ -325,26 +339,30 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
         bool bNotYetOnboard = iterPsngr->scheduledOnTime > nowTime;
         bool bOffloaded = iterPsngr->scheduledOffTime <= nowTime;
         if (bNotYetOnboard) { // hasn't gotten on board
-            iterPsngr->status = Request::requestStatus::waiting;
+            iterPsngr->setStatus(Request::requestStatus::waiting);
 			if(iterPsngr->scheduledOnTime <= nowTime + default_time_step){
 				newPassengers.push_back(*iterPsngr);
 			} else{
             #pragma omp critical(pushbackreq)
             newRequests.push_back(*iterPsngr);
-        }
+            }
         }
         else {
             if (bOffloaded) { // already got off
-                iterPsngr->status = Request::requestStatus::droppedOff;
+                iterPsngr->setStatus(Request::requestStatus::droppedOff);
             }
             else { // now on board
-                iterPsngr->status = Request::requestStatus::onBoard;
+                iterPsngr->setStatus(Request::requestStatus::onBoard);
                 newPassengers.push_back(*iterPsngr);
             }
         }
     }
     this->passengers = newPassengers;
     refresh_status(nowTime);
+
+    thisveh.open(outDir + "Misc/veh_status_" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
+    thisveh << to_string(now_time) + "," + to_string(this->availableSince) + "," + to_string(this->location) + "," + to_string(this->available) + "\n";
+    thisveh.close();
 }
 
 void Vehicle::refresh_status(int time) {

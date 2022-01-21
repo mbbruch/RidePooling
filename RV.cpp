@@ -54,10 +54,10 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests) {
 		int onBoardCnt = 0;
 		int waitingCnt = 0;
 		for (int j = 0; j < vehicles[thisIdx].passengers.size(); j++) {
-			if (vehicles[thisIdx].passengers[j].status == Request::requestStatus::waiting) {
+			if (vehicles[thisIdx].passengers[j].getStatus() == Request::requestStatus::waiting) {
 				waitingCnt++;
 			}
-			else if (vehicles[thisIdx].passengers[j].status == Request::requestStatus::onBoard) {
+			else if (vehicles[thisIdx].passengers[j].getStatus() == Request::requestStatus::onBoard) {
 				onBoardCnt++;
 			}
 		}
@@ -113,10 +113,11 @@ RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests) {
 		TravelHelper th;
 		for (int i = 0; i < numAvailable; i++) {
 			int thisIdx = availableIdxes[i];
-			int cost = th.travel(vehicles[thisIdx], reqs, 1, false);
+			Vehicle vCopy = vehicles[thisIdx];
+			int cost = th.travel(vCopy, reqs, 1, false);
 			if (cost >= 0) {
 				if (0 != lowestDist) {
-					if (vehicles[thisIdx].getAvailableSince() < 0) {
+					if (vCopy.getAvailableSince() < 0) {
 						lowestDist = 0;
 					}
 					else {

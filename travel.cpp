@@ -83,7 +83,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
             for (int i = 0; i < numReqs; i++) {
                 // exceed max waiting time
                 int thisWait = newTime - reqs[i]->reqTime;
-                if (reqs[i]->status == Request::requestStatus::waiting && thisWait > 0) {
+                if (reqs[i]->getStatus() == Request::requestStatus::waiting && thisWait > 0) {
                     if (thisWait > reqs[i]->allowedWait) {
                         exceeded = true;
                         break;
@@ -114,7 +114,7 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
         */
         if (!visited && !exceeded) {
             for (int i = 0; i < numReqs; i++) {
-                if (reqs[i]->status == Request::requestStatus::onBoard) {
+                if (reqs[i]->getStatus() == Request::requestStatus::onBoard) {
                     // total delay time exceeded
                     int thisWait = newTime - reqs[i]->expectedOffTime;
                     if (observeReqTimeLimits && (thisWait > reqs[i]->allowedDelay)) {
@@ -123,9 +123,12 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
                     }
                     if (reqs[i]->end == node.first && reqs[i]->unique == node.second) {
                         occupancy--;
-                        reqs[i]->status = Request::requestStatus::droppedOff;
+                        reqs[i]->setStatus(Request::requestStatus::droppedOff);
                         if (decided) {
                             reqs[i]->scheduledOffTime = newTime;
+                            if (reqs[i]->scheduledOnTime == -1) {
+                                int x = 5;
+                            }
                             schedule.push_back(*reqs[i]);
                         }
                         int addlDelay = newTime - reqs[i]->expectedOffTime;
@@ -161,13 +164,13 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
                     ++iterDst;
                 }
                 for (int i = 0; i < numReqs; i++) {
-                    if (reqs[i]->start == node.first && reqs[i]->unique ==node.second && reqs[i]->status==Request::requestStatus::waiting) {
+                    if (reqs[i]->start == node.first && reqs[i]->unique ==node.second && reqs[i]->getStatus()==Request::requestStatus::waiting) {
                         newPickups += occupancy * 2;
                         if (++occupancy > max_capacity) {
                             exceeded = true;
                             break;
                         }
-                        reqs[i]->status = Request::requestStatus::onBoard;
+                        reqs[i]->setStatus(Request::requestStatus::onBoard);
                         int earliestArrivalAllowed = max(now_time, reqs[i]->reqTime);
                         int timeDiff = earliestArrivalAllowed - newTime;
                         if (timeDiff > 0) {
@@ -215,10 +218,10 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
            
             dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, occupancy, newTotalCost, newTime, newOffset, decided, observeReqTimeLimits, bFeasibilityCheck);
 
+            vehicle.set_location(prevLoc);
             if (bFeasibilityCheck && ansCost != INF) {
                 return;
             }
-            vehicle.set_location(prevLoc);
             target.insert(node);
             path.pop_back();
         }
@@ -227,14 +230,14 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
         vehicle.reverse_passengers(getOffsPsngr, getOnsPsngr, occupancy, schedule, newOffset, decided);
         for (int m = 0; m < getOffsReq.size(); m++) {
             // printf("%d ", *iterRec);
-            reqs[getOffsReq[m]]->status = Request::requestStatus::onBoard;
+            reqs[getOffsReq[m]]->setStatus(Request::requestStatus::onBoard);
             occupancy++;
         }
 
         // restore attribute "onBoard" of recorded reqs
         for (int m = 0; m < getOnsReq.size(); m++) {
             // printf("%d ", *iterRec);
-            reqs[getOnsReq[m]]->status = Request::requestStatus::waiting;
+            reqs[getOnsReq[m]]->setStatus(Request::requestStatus::waiting);
             occupancy--;
         }
 
@@ -273,12 +276,28 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
         target.insert(make_pair(req->start,req->unique));
     }
 
+    Vehicle vCopy = vehicle;
+    vehicle = vCopy;
+    if (decided) {
+        if (vehicle.get_num_passengers() == 1 && vehicle.passengers[0].unique == 0) {
+            int x = 5;
+        }
+    }
+
     int beginTime = vehicle.getAvailableSince();
     vehicle.fixPassengerStatus(beginTime);
-    vector<Request::requestStatus> pre_statuses(vehicle.get_num_passengers(),Request::requestStatus::waiting);
-    for (int i = 0; i < vehicle.get_num_passengers(); i++) {
-        pre_statuses[i] = vehicle.passengers[i].status;
+    for (int i = 0; i < numReqs; i++) {
+        reqs[i]->fixStatus(beginTime);
     }
+    vector<Request::requestStatus> pre_statuses_veh(vehicle.get_num_passengers(),Request::requestStatus::waiting);
+    vector<Request::requestStatus> pre_statuses_req(numReqs, Request::requestStatus::waiting);
+    for (int i = 0; i < vehicle.get_num_passengers(); i++) {
+        pre_statuses_veh[i] = vehicle.passengers[i].getStatus();
+    }
+    for (int i = 0; i < numReqs; i++) {
+        pre_statuses_req[i] = reqs[i]->getStatus();
+    }
+
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary
     vehicle.insert_targets(target, src_dst, beginTime);
@@ -295,6 +314,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
         change in the car's # of passengers (-1 for dropoff, +1 for pickup), 
         request # (index into vector of requests)
     */
+    Request reqCopy = *(reqs[0]);
     int occupancyStart = vehicle.getOccupancyAt(beginTime);
     assert(!vehicle.offline || bFeasibilityCheck);
     dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, 
@@ -303,12 +323,23 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
 
     if (!decided) {
         for (int i = 0; i < vehicle.get_num_passengers(); i++) {
-            vehicle.passengers[i].status = pre_statuses[i];
+            vehicle.passengers[i].setStatus(pre_statuses_veh[i]);
+        }
+        for (int i = 0; i < numReqs; i++) {
+            reqs[i]->setStatus(pre_statuses_req[i]);
         }
     }
     
     if (ansCost != INF) {
         if (decided) {
+            if (vehicle.get_num_passengers() == 1 && vehicle.passengers[0].unique == 0) {
+                int x = 5;
+            }
+            else {
+                if (now_time > 900) {
+                    int x = 5;
+                }
+            }
             beginTime += ansOffset;
             vector<int> order;
             vector<pair<int, int> > finalPath;
@@ -389,6 +420,9 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                                     thisReq.scheduledOnTime = finalPath[finalPath.size() - 1].first;
                                 }
                                 else if (thisReq.end == finalPath[finalPath.size() - 1].second) {
+                                    if (thisReq.scheduledOnTime == -1) {
+                                        int x = 5;
+                                    }
                                     thisReq.scheduledOffTime = finalPath[finalPath.size() - 1].first;
                                 }
                             }

@@ -298,8 +298,9 @@ void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
     
 	int overTimeLimit = 0;
     for (auto iter = unserved.begin(); iter != unserved.end(); iter++) {
-        iter->status = Request::requestStatus::waiting;
-        iter->scheduledOnTime = -1;
+        iter->setStatus(Request::requestStatus::waiting);
+        iter->scheduledOnTime = -INF;
+        iter->scheduledOffTime = -INF;
         iter->allowedDelay = iter->allowedDelay + time_step;
         iter->allowedWait = iter->allowedWait + time_step;
 		
@@ -419,7 +420,7 @@ void write_vehicle_routes(const std::string& outDir, const std::vector<Vehicle>&
             ofs.open(outDir + "Riders/" + to_string(iter->unique) + ".csv", std::ofstream::out | std::ofstream::app);
             ofs << to_string(now_time) + "," + to_string(i) + "," + to_string(iter->start) + "," + to_string(iter->end) + "," +
                 to_string(iter->reqTime) + "," + to_string(iter->scheduledOnTime) + "," + to_string(iter->scheduledOffTime) + "," +
-                to_string((int)iter->status) + "\n";
+                to_string(static_cast<int>(iter->getStatus())) + "\n";
         }
         ofs.close();
     }
