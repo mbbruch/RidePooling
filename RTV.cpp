@@ -516,7 +516,7 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
     const std::vector<tripCandidate>& thisSizeVec = allPotentialTrips[tripSize - 1];
     if (lastSizeVec.size() < tripSize || thisSizeVec.size() == 0) return;
 
-    std::vector<std::pair<int, std::pair<int, int>>> validTripCosts;
+    std::vector<std::tuple<int,int,int>> validTripCosts;
     int m = 0;
 #pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(m) schedule(guided) shared(validTripCosts, addedTrips, adjustedTripIdxes, requests, vehicles, vehIDToVehIdx, tripSize, treeCost, lastSizeVec, thisSizeVec, prevInclusions, theseInclusions)
     for (m = 0; m < prevInclusions.size(); m++) {
@@ -532,7 +532,7 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
         else {
             continue;
         }
-        std::vector<std::pair<int, std::pair<int, int>>> theseValidTripCosts;
+        std::vector<std::tuple<int, int, int>> theseValidTripCosts;
         theseValidTripCosts.reserve(carPrev.size() * (carPrev.size() - 1) / 2);
         if (carPrev.size() == lastSizeVec.size()) {
             for (int i = 0; i < thisSizeVec.size(); i++) {
@@ -550,12 +550,7 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                 Vehicle vCopy = vehicles[vId];
                 TravelHelper th;
                 int cost = th.travel(vCopy, reqs, tripSize, false);
-                if (cost >= 0) {
-                    int tripIdx = getTIdx(thisSizeVec[i].requests);
-                    theseValidTripCosts.push_back(make_pair(vIdx, make_pair(tripIdx, cost)));
-                    addedTrips[i] = 1;
-                    theseInclusions[m].second.insert(i);
-                }
+                if (cost >= 0) theseValidTripCosts.push_back(std::tuple<int,int,int>(cost, m, i));
             }
         }
         else {
@@ -582,7 +577,7 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                 }
             }
             for (auto it = carThis.begin(); it != carThis.end(); ++it) {
-                if (it->second != tripSize) continue; //TODO just remove these indices?
+                if (it->second != tripSize) continue;
                 vector<Request> copiedRequests;
                 copiedRequests.reserve(thisSizeVec[it->first].requests.size());
                 for (auto itr = thisSizeVec[it->first].requests.begin(); itr != thisSizeVec[it->first].requests.end(); ++itr) {
@@ -597,22 +592,75 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
                 Vehicle vCopy = vehicles[vId];
                 TravelHelper th;
                 int cost = th.travel(vCopy, reqs, tripSize, false);
-                if (cost >= 0) {
-                    int tripIdx = getTIdx(thisSizeVec[it->first].requests);
-                    theseValidTripCosts.push_back(make_pair(vIdx, make_pair(tripIdx, cost)));
-                    addedTrips[it->first] = 1;
-                    theseInclusions[m].second.insert(it->first);
-                }
+                if (cost >= 0) theseValidTripCosts.push_back(std::tuple<int, int, int>(cost, m, it->first));
             }
         }
 #pragma omp critical(pushingToVec)
         validTripCosts.insert(validTripCosts.end(), theseValidTripCosts.begin(), theseValidTripCosts.end());
     }
+    validTripCosts.shrink_to_fit();
+    std::sort(validTripCosts.begin(), validTripCosts.end());
+    std::vector<int> vAssignments(prevInclusions.size(), -1); //indexed as m above
+    std::vector<int> tAssignments(thisSizeVec.size(), -1); //indexed as i above
+    std::vector<int> rAssignments(requests.size(), -1); //
+    std::vector<int> vAssignmentCounts(prevInclusions.size(), 0);
+    std::vector<int> tAssignmentCounts(thisSizeVec.size(), 0);
+    std::vector<int> rAssignmentCounts(thisSizeVec.size(), 0);
+    for (int i = 0; i < validTripCosts.size(); i++) {
+        int vIdx = std::get<1>(validTripCosts[i]);
+        int tIdx = std::get<2>(validTripCosts[i]);
+        if (vAssignmentCounts[vIdx] >= min_req_per_v && tAssignmentCounts[tIdx] >= max_v_per_req && (-1 != vAssignments[vIdx] || -1 != tAssignments[tIdx])) {
+            std::get<0>(validTripCosts[i]) = -1;
+            continue;
+        }
+        vAssignmentCounts[vIdx]++;
+        tAssignmentCounts[tIdx]++;
+        if (-1 == vAssignments[vIdx] && -1 == tAssignments[tIdx]) {
+            vAssignments[vIdx] = tIdx;
+            tAssignments[tIdx] = vIdx;
+        }
+    }
+    std::vector<int>().swap(vAssignmentCounts);
+    std::vector<int>().swap(tAssignmentCounts);
+    std::vector<int>().swap(vAssignments);
+    std::vector<int>().swap(tAssignments);
+    validTripCosts.erase(std::remove_if(validTripCosts.begin(), validTripCosts.end(),
+        [](const std::tuple<int, int, int>& o) { return std::get<0>(o) == -1; }),
+        validTripCosts.end());
+    std::sort(validTripCosts.begin(), validTripCosts.end(),
+        [](const std::tuple<int, int, int>& a, const std::tuple<int, int, int>& b) {
+            return std::get<2>(a) < std::get<2>(b) || (std::get<2>(a) == std::get<2>(b) && std::get<1>(a) < std::get<1>(b));
+        }); //orders ascending by trip then vehicle
+    validTripCosts.shrink_to_fit();
+    int prevI = -1;
+    int prevM = -1;
+    int vIdx = -1;
+    int tIdx = -1;
+    for (int j = 0; j < validTripCosts.size(); j++) {
+        int cost = std::get<0>(validTripCosts[j]);
+        int m = std::get<1>(validTripCosts[j]); //vehicle
+        int i = std::get<2>(validTripCosts[j]); //trip
+        if (i != prevI) {
+            tIdx = getTIdx(thisSizeVec[i].requests);
+            prevI = i;
+        }
+        if (m != prevM){
+            prevM = m;
+            auto itVeh = vehIDToVehIdx.find(prevInclusions[m].first);
+            if (itVeh == vehIDToVehIdx.end()) { vIdx = -1; continue; }
+            else { vIdx = itVeh->second; };
+        }
+        if (vIdx == -1 || tIdx == -1 || cost == -1) continue;
+        addedTrips[i] = 1;
+        theseInclusions[m].second.insert(i);
+        std::get<1>(validTripCosts[j]) = vIdx;
+        std::get<2>(validTripCosts[j]) = tIdx;
+    }
     std::string vehTripsFile = outDir + "Misc/Trips/trips_valid_" + to_string(tripSize) + ".hps";
     std::ofstream out_file(vehTripsFile, std::ofstream::binary | std::ios_base::app);
     hps::to_stream(validTripCosts, out_file);
     out_file.close();
-    std::vector<std::pair<int, std::pair<int, int>>>().swap(validTripCosts);
+    std::vector<std::tuple<int, int, int>>().swap(validTripCosts);
 }
 
 void RTVGraph::serialize_current_combos() {
@@ -657,10 +705,11 @@ void RTVGraph::deserialize_valid_trips() {
         //       #pragma omp parallel for default(none) private(thread) shared(tripSize, treeCost)
         if (!std::filesystem::exists(vehTripsFile)) continue;
         std::ifstream in_file(vehTripsFile, std::ofstream::binary);
-        auto parsed = hps::from_stream<std::vector<std::pair<int, std::pair<int, int>>>>(in_file);
+        auto parsed = hps::from_stream<std::vector<std::tuple<int,int,int>>>(in_file);
         if (parsed.size() == 0) break;
         for (int i = 0; i < parsed.size(); i++) {
-            add_edge_trip_vehicle(parsed[i].second.first, parsed[i].first, parsed[i].second.second);
+            //cost, v, t -> t, v, cost
+            add_edge_trip_vehicle(std::get<2>(parsed[i]), std::get<1>(parsed[i]), std::get<0>(parsed[i]));
         }
     }
     std::filesystem::remove_all(vehTripsPath);
@@ -1404,12 +1453,7 @@ void RTVGraph::rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehi
                     }
 
                     assignedCnt++;
-                    if (vehicles[thisId].get_num_passengers() == 0) {
-                        vehicles[thisId].clear_path();
-                    }
-                    else {
-                        int x = 5;
-                    }
+                    if (vehicles[thisId].get_num_passengers() == 0) vehicles[thisId].clear_path();
                     int beginTime = (vehicles[thisId].get_num_passengers() == 0 || vehicles[thisId].scheduledPath.size() == 0) ? vehicles[thisId].getAvailableSince() : vehicles[thisId].scheduledPath.back().first;
                     int passedDist = 0;
                     vector<pair<int, int> > finalPath;
@@ -1585,9 +1629,6 @@ void RTVGraph::prune() {
     for (int i = 0; i < size_cost_t_v.size(); i++) {
         int vIdx = std::get<3>(size_cost_t_v[i]);
         int tIdx = std::get<2>(size_cost_t_v[i]);
-        if (tIdx == -1) {
-            int x = 5;
-        }
         const uos& thisTrip = trips[tIdx];
         int minAssignmentCount = 0;
         bool vHasEnough = vAssignmentCounts[vIdx] >= min_req_per_v;

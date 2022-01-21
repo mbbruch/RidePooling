@@ -120,9 +120,6 @@ void Vehicle::check_passengers(int& nowTime, locReq stop, bool& exceeded, int& c
                 req.setStatus(Request::requestStatus::droppedOff);
                 if (decided) {
                     req.scheduledOffTime = nowTime;
-                    if (req.scheduledOnTime == -1) {
-                        int x = 5;
-                    }
                     schedule.push_back(req);
                 }
                 int addlDelay = nowTime - req.expectedOffTime;

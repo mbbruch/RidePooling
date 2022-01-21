@@ -5,6 +5,7 @@ private:
 
 public:
     enum class requestStatus { waiting=3, onBoard=4, droppedOff=5 };
+    requestStatus status;
     requestStatus getStatus() const { return status; };
     void setStatus(requestStatus newStatus);
     void fixStatus(int nowTime);
@@ -14,7 +15,6 @@ public:
     int scheduledOnTime, scheduledOffTime;
     int allowedDelay;
     int allowedWait;
-    requestStatus status;
     int unique;
 
     static int nextUid;

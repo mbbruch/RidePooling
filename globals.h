@@ -84,8 +84,8 @@ extern std::string baseOutDir;
 extern std::string outDir; 
 extern std::string logFile;
 
-typedef boost::container::flat_set<int> uos;
-//typedef std::set<int> uos;
+//typedef boost::container::flat_set<int> uos;
+typedef std::set<int> uos;
 
 struct sum_of_hashes
 {

@@ -46,9 +46,6 @@ Request::Request(int start, int end, int reqTime) {
 }
 
 void Request::setStatus(Request::requestStatus newStatus){
-    if (this->unique == 13 || this->unique == 17) {
-        int x = 5;
-    }
     status = newStatus;
 };
 

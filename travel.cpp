@@ -126,9 +126,6 @@ void TravelHelper::dfs(Vehicle& vehicle, Request *reqs[], const int numReqs,
                         reqs[i]->setStatus(Request::requestStatus::droppedOff);
                         if (decided) {
                             reqs[i]->scheduledOffTime = newTime;
-                            if (reqs[i]->scheduledOnTime == -1) {
-                                int x = 5;
-                            }
                             schedule.push_back(*reqs[i]);
                         }
                         int addlDelay = newTime - reqs[i]->expectedOffTime;
