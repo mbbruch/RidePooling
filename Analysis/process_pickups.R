@@ -41,11 +41,12 @@ pickups=lapply(files, fread, header=FALSE)
 for (i in 1:length(pickups)){
      pickups[[i]]$car_id <- ids[i]
 }
-pickups <- rbindlist(pickups)
+pickups <- rbindlist(pickups,fill=TRUE)
 colnames(pickups) <- c("time_window","rider_id","event_type","node",
            "time_actual","time_ideal","car_id")
+pickups <- pickups[!is.na(rider_id)]
 pickups <- unique(pickups)
-setorder(pickups,time_window,time_actual,event_type,rider_id)
+setorder(pickups,car_id,time_actual,event_type,rider_id)
 rider_rollup <- pickups[,.(o=max(fifelse(event_type=="on",node,as.numeric(NA)),na.rm=TRUE),
                            d=max(fifelse(event_type=="off",node,as.numeric(NA)),na.rm=TRUE),
                            tRequest=min(fifelse(event_type=="on",time_ideal,as.numeric(NA)),na.rm=TRUE),
@@ -54,21 +55,24 @@ rider_rollup <- pickups[,.(o=max(fifelse(event_type=="on",node,as.numeric(NA)),n
                            tDropoff=max(fifelse(event_type=="off",time_actual,as.numeric(NA)),na.rm=TRUE)),
                            by=rider_id]
 rider_rollup[,':='(ideal_travel_time=tDropoffIdeal-tRequest,travel_time=tDropoff-tPickup)]
-rider_rollup[,':='(wait=tPickup-tRequest,delay=tDropoff-tDropoffIdeal)][,total_time_lost:=wait+delay]
-View(rider_rollup[o==-Inf | d==-Inf][order(rider_id)])
+rider_rollup[,':='(wait=tPickup-tRequest,total_time_lost=tDropoff-tDropoffIdeal)][,delay:=total_time_lost-wait]
+View(rider_rollup[o==-Inf][order(rider_id)])
 
-setorder(pickups,time_window,time_actual,event_type,rider_id)
+setorder(pickups,car_id,time_actual,event_type,rider_id)
+pickups[,':='(rownum=.I)]
 pickups[,':='(occupancy = cumsum(fifelse(event_type=="on",1,-1))),by=.(car_id)]
 pickups[,':='(occupancy.change = occupancy-shift(occupancy,type="lag")),by=.(car_id)]
 pickups[,':='(occupancy.change.floor=pmax(occupancy.change,0,na.rm=TRUE))]
 pickups[,':='(occupancy.counter=cumsum(occupancy.change.floor)),by=.(car_id)]
+pickups[,':='(pickup.time=min(time_actual),dropoff.time=max(time_actual)),by=.(rider_id,car_id)]
+pickups[,':='(first.dropoff.row=min(ifelse(time_actual==dropoff.time,rownum,Inf),na.rm=TRUE)),by=.(rider_id,car_id)]
 max.occupancy = pickups[,.(min.overfull.time = min(ifelse(occupancy>2,time_actual,Inf))),by=.(car_id)][min.overfull.time<Inf]
 
 sharing <- pickups[,.(
-     pickup.occupancy=max(ifelse(time_actual==min(time_actual),occupancy,0)),
-     en.route.pickups=max(ifelse(time_actual>=min(time_actual) & time_actual <= max(time_actual),occupancy.counter,0))-
-          min(ifelse(time_actual>=min(time_actual) & time_actual <= max(time_actual),occupancy.counter,0))
-),by=.(rider_id,car_id)][,total.sharing:=pickup.occupancy+en.route.pickups]
+        pickup.occupancy=max(ifelse(time_actual==pickup.time,occupancy-1,0),na.rm=TRUE),
+        en.route.pickups=max(ifelse(rownum==first.dropoff.row,occupancy.counter,0),na.rm=TRUE) -
+                                     max(ifelse(time_actual==pickup.time,occupancy.counter,0),na.rm=TRUE)),
+        by=.(rider_id,car_id)][,total.sharing:=pickup.occupancy+en.route.pickups]
 
 rider_rollup[sharing,':='(total.sharing=total.sharing,car_id=car_id),on=.(rider_id)]
 saveRDS(rider_rollup,paste0(base.path,datestring,sep,"rider_rollup.RDS"))

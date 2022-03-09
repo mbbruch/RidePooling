@@ -601,29 +601,40 @@ void RTVGraph::build_single_vehicles(vector<Request>& requests, vector<Vehicle>&
     validTripCosts.shrink_to_fit();
     std::sort(validTripCosts.begin(), validTripCosts.end());
     std::vector<int> vAssignments(prevInclusions.size(), -1); //indexed as m above
-    std::vector<int> tAssignments(thisSizeVec.size(), -1); //indexed as i above
+    //std::vector<int> tAssignments(thisSizeVec.size(), -1); //indexed as i above
     std::vector<int> rAssignments(requests.size(), -1); //
     std::vector<int> vAssignmentCounts(prevInclusions.size(), 0);
-    std::vector<int> tAssignmentCounts(thisSizeVec.size(), 0);
-    std::vector<int> rAssignmentCounts(thisSizeVec.size(), 0);
+    //std::vector<int> tAssignmentCounts(thisSizeVec.size(), 0);
+    std::vector<int> rAssignmentCounts(requests.size(), 0);
     for (int i = 0; i < validTripCosts.size(); i++) {
         int vIdx = std::get<1>(validTripCosts[i]);
         int tIdx = std::get<2>(validTripCosts[i]);
-        if (vAssignmentCounts[vIdx] >= min_req_per_v && tAssignmentCounts[tIdx] >= max_v_per_req && (-1 != vAssignments[vIdx] || -1 != tAssignments[tIdx])) {
+        const uos& tripReqIdxes = thisSizeVec[tIdx].requests;
+        bool bAllReqCovered = true;
+        bool bAnyReqAssigned = false;
+        for (auto it = tripReqIdxes.begin(); it != tripReqIdxes.end(); ++it) {
+            if (rAssignmentCounts[*it] < max_v_per_req) bAllReqCovered = false;
+            if (rAssignments[*it] != -1) bAnyReqAssigned = true;
+        }
+        if (vAssignmentCounts[vIdx] >= min_req_per_v && bAllReqCovered && (-1 != vAssignments[vIdx] || bAnyReqAssigned)) {
             std::get<0>(validTripCosts[i]) = -1;
             continue;
         }
         vAssignmentCounts[vIdx]++;
-        tAssignmentCounts[tIdx]++;
-        if (-1 == vAssignments[vIdx] && -1 == tAssignments[tIdx]) {
+        for (auto it = tripReqIdxes.begin(); it != tripReqIdxes.end(); ++it) {
+            rAssignmentCounts[*it]++;
+        }
+        if (-1 == vAssignments[vIdx] && !bAnyReqAssigned) {
             vAssignments[vIdx] = tIdx;
-            tAssignments[tIdx] = vIdx;
+            for (auto it = tripReqIdxes.begin(); it != tripReqIdxes.end(); ++it) {
+                rAssignments[*it] = vIdx;
+            }
         }
     }
     std::vector<int>().swap(vAssignmentCounts);
-    std::vector<int>().swap(tAssignmentCounts);
+    //std::vector<int>().swap(tAssignmentCounts);
     std::vector<int>().swap(vAssignments);
-    std::vector<int>().swap(tAssignments);
+    //std::vector<int>().swap(tAssignments);
     validTripCosts.erase(std::remove_if(validTripCosts.begin(), validTripCosts.end(),
         [](const std::tuple<int, int, int>& o) { return std::get<0>(o) == -1; }),
         validTripCosts.end());
@@ -827,7 +838,7 @@ void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles,
     vector<int> idleVIds;
     uos newlyServed;
     for (int i = 0; i < vehicles.size(); i++) {
-        if (vehicles[i].get_num_passengers() == 0 && !vehicles[i].offline && vehicles[i].getAvailableSince() < now_time + time_step)  idleVIds.push_back(i);
+        if (vehicles[i].get_num_passengers() < max_capacity && !vehicles[i].offline && vehicles[i].getAvailableSince() < now_time + time_step)  idleVIds.push_back(i);
     }
     int idleCnt = (int)idleVIds.size();
     int unservedCnt = (int)unserved.size();
@@ -845,12 +856,23 @@ void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles,
             TravelHelper th;
             Request* reqs[1];
             reqs[0] = &copied;
-            int cost = th.travel(vCopy, reqs, 1, false, false);
+            bool bConsiderReqWait = true;
+            int cost = th.travel(vCopy, reqs, 1, false, bConsiderReqWait);
             if (cost != -1) {
                 int idx = i * unservedCnt + j;
                 std::get<0>(allCosts[idx]) = cost;
                 std::get<1>(allCosts[idx]) = i;
                 std::get<2>(allCosts[idx]) = j;
+            }
+            else {
+                bConsiderReqWait = false;
+                int cost = th.travel(vCopy, reqs, 1, false, bConsiderReqWait);
+                if (cost != -1) {
+                    int idx = i * unservedCnt + j;
+                    std::get<0>(allCosts[idx]) = cost;
+                    std::get<1>(allCosts[idx]) = i;
+                    std::get<2>(allCosts[idx]) = j;
+                }
             }
         }
     }
@@ -941,15 +963,18 @@ void RTVGraph::rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles,
             assignments << to_string(now_time) + "," + to_string(vIdx) + "," + to_string(reqs[0]->unique) + "\n";
             assignments.close();
             TravelHelper th;
-            if (-1 == th.travel(vehicles[vIdx], reqs, 1, true, false)) continue;
+            if (-1 == th.travel(vehicles[vIdx], reqs, 1, true, true)) {
+                if (-1 == th.travel(vehicles[vIdx], reqs, 1, true, false))
+                    continue;
+            }
             newlyServed.emplace(rIdx);
             for (auto it = vehicles[vIdx].passengers.begin(); it != vehicles[vIdx].passengers.end(); ++it) {
                 if (it->unique != reqs[0]->unique) continue;
                 int delay = it->scheduledOffTime - it->expectedOffTime;
                 int wait = it->scheduledOnTime - it->reqTime;
-                if (delay > max_delay_sec || wait > max_wait_sec) {
-                    it->allowedDelay = delay + max_delay_sec;
-                    it->allowedWait = wait + max_wait_sec;
+									if (delay > it->allowedDelay || wait > it->allowedWait) {
+										it->allowedDelay = delay;
+										it->allowedWait = wait;
                 }
                 break;
             }
@@ -974,7 +999,7 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
     for (int i = 0; i < vehicles.size(); i++) {
         if (vehicles[i].offline || vehicles[i].getAvailableSince() >= now_time + time_step) continue;
 
-        if (vehicles[i].get_num_passengers() == 0) {
+        if (vehicles[i].get_num_passengers() < max_capacity) {
             idleVIds.push_back(i);
             continue;
         }
@@ -1019,15 +1044,23 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
                     Vehicle vehCopy = vehicles[idleVIds[i]];
                     reqs[0] = &reqCopy;
                     TravelHelper th;
-                    int cost = th.travel(vehCopy, reqs, 1, false, false);
+                    int cost = th.travel(vehCopy, reqs, 1, false, true);
                     if (cost != -1) {
                         bAdded = true;
                         objectiveMain += y[i][j] * cost;
                         servableUnserved.insert(j);
                     }
                     else {
-                        y[i][j].set(GRB_DoubleAttr_UB, 0.0);
-                        objectiveMain += y[i][j] * 0;
+                        cost = th.travel(vehCopy, reqs, 1, false, false);
+                        if (cost != -1) {
+                            bAdded = true;
+                            objectiveMain += y[i][j] * cost;
+                            servableUnserved.insert(j);
+                        }
+                        else {
+                            y[i][j].set(GRB_DoubleAttr_UB, 0.0);
+                            objectiveMain += y[i][j] * 0;
+                        }
                     }
                     objectiveCnt += y[i][j];
                     totalEdgesCnt += y[i][j];
@@ -1069,14 +1102,16 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
                         Request* reqs[1];
                         reqs[0] = &unserved[j];
                         TravelHelper th;
-                        if (-1 != th.travel(vehicles[idleVIds[i]], reqs, 1, true, false)) {
+                        int cost = th.travel(vehicles[idleVIds[i]], reqs, 1, true, true);
+                        if(cost == -1) cost = th.travel(vehicles[idleVIds[i]], reqs, 1, true, false);
+                        if (-1 != cost) {
                             for (auto it = vehicles[idleVIds[i]].passengers.begin(); it != vehicles[idleVIds[i]].passengers.end(); ++it) {
                                 if (it->unique == reqs[0]->unique) {
                                     int delay = it->scheduledOffTime - it->expectedOffTime;
                                     int wait = it->scheduledOnTime - it->reqTime;
-                                    if (delay > max_delay_sec || wait > max_wait_sec) {
-                                        it->allowedDelay = delay + max_delay_sec;
-                                        it->allowedWait = wait + max_wait_sec;
+                                if (delay > it->allowedDelay || wait > it->allowedWait) {
+                                    it->allowedDelay = delay;
+                                    it->allowedWait = wait;
                                     }
                                     break;
                                 }
@@ -1107,6 +1142,7 @@ void RTVGraph::rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicl
 }
 
 void RTVGraph::rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, int nowTime) {
+    print_line(outDir, logFile, string_format("Forecast rebalancing (now=%d, using forecasts from %d.)", now_time, nowTime));
     int totalDemand = 0;
     int areaCount = treeCost.area_medoids.size();
     auto it = treeCost.city_forecasts_max.find(nowTime);
@@ -1117,7 +1153,6 @@ void RTVGraph::rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, 
     vector<double> scaled_demand(areaCount, 0.0);
     vector<double> area_rewards(areaCount, 0.0);
     vector<int> area_shortages(areaCount, 0);
-    print_line(outDir, logFile, "1044 ");
     //Count forecasted demand and unserved trips
     for (int i = 0; i < unserved.size(); i++) {
         int thisArea = treeCost.node_areas[unserved[i].start - 1];
@@ -1153,16 +1188,13 @@ void RTVGraph::rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, 
     std::vector<std::pair<int, vehStatus>> idleVehIDs;
     std::vector<std::pair<int, vehStatus>> offlineDepotVIds;
     std::vector<std::pair<int, vehStatus>> offlineEnrouteVIds;
-    print_line(outDir, logFile, "1080 ");
     idleVehIDs.reserve(std::count_if(vehicles.begin(), vehicles.end(), [&nowTime](const Vehicle& v) {
         return ((!v.offline || (v.offline && v.get_location() != vehicle_depot)) && !(v.get_num_passengers() > 0 && !(v.scheduledPath.size() > 0 && v.scheduledPath.back().first >= nowTime + time_step))); }));
     //TODO: this shouldn't check getAvailableSince!!!
     offlineDepotVIds.reserve(std::count_if(vehicles.begin(), vehicles.end(), [&nowTime](const Vehicle& v) {
         return (v.offline && v.get_location() == vehicle_depot && !(v.get_num_passengers() > 0 && !(v.scheduledPath.size() > 0 && v.scheduledPath.back().first >= nowTime + time_step))); }));
-    print_line(outDir, logFile, "1086 ");
     offlineEnrouteVIds.reserve(std::count_if(vehicles.begin(), vehicles.end(), [&nowTime](const Vehicle& v) {
         return (v.offline && v.get_location() != vehicle_depot && !(v.get_num_passengers() > 0 && !(v.scheduledPath.size() > 0 && v.scheduledPath.back().first >= nowTime + time_step))); }));
-    print_line(outDir, logFile, "1089 ");
     for (int i = 0; i < vehicles.size(); i++) {
         if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
             int x = 5;
@@ -1187,7 +1219,6 @@ void RTVGraph::rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, 
             idleVehIDs.push_back(make_pair(i, vehStatus::ONLINE_IDLE));
         }
     }
-    print_line(outDir, logFile, "1144 ");
     if (toBringOnline > 0) {
         int broughtOnline = 0;
         for (int i = 0; i < offlineDepotVIds.size() && broughtOnline <= toBringOnline; i++) {
@@ -1201,9 +1232,7 @@ void RTVGraph::rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, 
             }
         }
         else {
-            print_line(outDir, logFile, string_format("1127: sample %d from %d.", left, offlineEnrouteVIds.size()));
             const std::unordered_set<int>& vehToBringOnline = floyd_sampling(left, offlineEnrouteVIds.size());
-            print_line(outDir, logFile, "1129 ");
             for (auto it = vehToBringOnline.begin(); it != vehToBringOnline.end(); ++it) {
                 vehicles[offlineEnrouteVIds[*it].first].bring_online();
             }
@@ -1219,15 +1248,34 @@ void RTVGraph::rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, 
             }
         }
         else {
-            print_line(outDir, logFile, string_format("1143: sample %d from %d.", toTakeOffline, idleVehIDs.size()));
+		print_line(outDir, logFile, "1252 RTV.cpp");
+			std::unordered_set<int> nowOffline;
+			for (int i = 0; i < idleVehIDs.size(); i++) {
+				if(vehicles[idleVehIDs[i].first].get_location() == vehicle_depot){
+					vehicles[idleVehIDs[i].first].take_offline();
+					int thisId = idleVehIDs[i].first;
+					nowOffline.insert(thisId);
+					takenOffline++;
+					if(takenOffline==toTakeOffline) break;
+				}			
+			}
+			idleVehIDs.erase(std::remove_if(idleVehIDs.begin(), idleVehIDs.end(),
+            [&nowOffline](const std::pair<int, vehStatus>& o) { return nowOffline.find(o.first) != nowOffline.end(); }),
+            idleVehIDs.end());
+			toTakeOffline = toTakeOffline - takenOffline;
+			if(toTakeOffline > idleVehIDs.size()){
+			   for (int i = 0; i < idleVehIDs.size(); i++) {
+					vehicles[idleVehIDs[i].first].take_offline();				
+				}
+			}
+			else{
             const std::unordered_set<int>& vehToTakeOffline = floyd_sampling(toTakeOffline, idleVehIDs.size());
-            print_line(outDir, logFile, "1145 ");
             for (auto it = vehToTakeOffline.begin(); it != vehToTakeOffline.end(); ++it) {
                 vehicles[idleVehIDs[*it].first].take_offline();
             }
         }
     }
-    print_line(outDir, logFile, "1151 ");
+	}
 }
 
 
@@ -1540,7 +1588,6 @@ void RTVGraph::rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>
     rebalance_for_pruning_fix(env, vehicles, unserved);
     print_line(outDir, logFile, string_format("Finishing cars rebalancing.", now_time, timeToUse));
     rebalance_for_finishing_cars(env, vehicles, unserved);
-    print_line(outDir, logFile, string_format("Forecast rebalancing (now=%d, using forecasts from %d.)", now_time, timeToUse));
     rebalance_online_offline(env, vehicles, unserved, timeToUse);
     print_line(outDir, logFile, string_format("Done rebalancing.", now_time, timeToUse));
 }
@@ -1685,9 +1732,6 @@ void RTVGraph::prune() {
         int cost = std::get<1>(thisTup);
         int tIdx = std::get<2>(thisTup);
         int vidx = std::get<3>(thisTup);
-        if (tIdx == -1) {
-            int x = 5;
-        }
         tIdx_vCostIdxes[tIdx].push_back(pair<int, pair<int, int>>{cost, pair<int, int>{0, vidx}});
         vIdx_tIdxes[vidx].push_back(pair<int, pair<int, int>>{cost, pair<int, int>{0, tIdx}});
     }
@@ -1709,9 +1753,6 @@ void RTVGraph::prune() {
     }
     for (auto it = tIdx_vCostIdxes.begin(); it != tIdx_vCostIdxes.end(); ++it) {
         prunedSize2 += it->second.size();
-    }
-    if (prunedSize2 != size_cost_t_v.size()) {
-        int x = 5;
     }
     print_line(outDir, logFile, string_format("RTV size trimmed from %d & %d -> %d -> %d & %d.",
         origSize, origSize2, prevSize, prunedSize, prunedSize2));
@@ -1759,7 +1800,6 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
             }
             model.addConstr(constr <= 1.0 + minimal);
         }
-        print_line(outDir, logFile, "1649.");
         /* Constraint #2: Each request is served on exactly one trip*/
         // printf("Adding constraint #2 ...\n");
         for (auto iterRV = rId_tIdxes.begin(); iterRV != rId_tIdxes.end(); ++iterRV) {
@@ -1779,8 +1819,6 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
             }
             model.addConstr(constr <= 1.0 + minimal);
         }
-
-        print_line(outDir, logFile, "1670.");
         // greedy assignment
         // printf("Greedy assignment...\n");
         set<int> assignedRIds, assignedVIdxes;
@@ -1809,9 +1847,7 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
             edgeIters, edgeEnds, tIdxes, assignedRIds, assignedVIdxes,
             epsilon, tempLookupRtoT, validTripReverseLookup
         );
-        int thisPenalty = maxCostTrip * 10; //penalty also defined in globals.h/.cpp
-
-        print_line(outDir, logFile, "1700.");
+		int thisPenalty = maxCostTrip * 50; //penalty also defined in globals.h/.cpp
         // build objective expression
         GRBLinExpr objective = 0;
         // printf("Generating objective expression...\n");
@@ -1823,8 +1859,8 @@ void RTVGraph::solve(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& re
                 objective += epsilon[i][vehIdx] * (vCostIdxes[vehIdx].first - reqsInTrip * thisPenalty);
             }
         }
-        model.set("TimeLimit", "1500.0");
-        model.set("MIPGap", "0.01");
+		model.set("TimeLimit", "900.0");
+		model.set("MIPGap", "0.005");
         model.set("Method", "1");
         model.set("NodeFileStart", "0.5");
         model.set("Presolve", "1");

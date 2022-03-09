@@ -295,26 +295,25 @@ void update_requests_with_dist(FILE*& in) {
 
 void handle_unserved(vector<Request>& unserved, vector<Request>& requests,
     int nowTime) {
-    
 	int overTimeLimit = 0;
+    std::ofstream ofs;
+    ofs.open(outDir + "Misc/unservedOverLimit.csv", std::ofstream::out | std::ofstream::app);
     for (auto iter = unserved.begin(); iter != unserved.end(); iter++) {
-        iter->setStatus(Request::requestStatus::waiting);
-        iter->scheduledOnTime = -INF;
-        iter->scheduledOffTime = -INF;
-        iter->allowedDelay = iter->allowedDelay + time_step;
-        iter->allowedWait = iter->allowedWait + time_step;
-		
-		if (nowTime - iter->reqTime <= max_wait_sec) overTimeLimit++;
-/*
-        if (nowTime - iter->reqTime <= max_wait_sec) {
-            iter->status = Request::waiting;
-            iter->scheduledOnTime = -1;
+        //iter->allowedDelay = iter->allowedDelay + time_step;
+        //iter->allowedWait = iter->allowedWait + time_step;
+        if (nowTime - iter->reqTime <= iter->allowedWait) {
+            iter->setStatus(Request::requestStatus::waiting);
+            iter->scheduledOnTime = -INF;
+            iter->scheduledOffTime = -INF;
             requests.push_back(*iter);
-        } else {
-            unserved_dist += iter->shortestDist;
         }
-*/
+        else {
+            ofs << to_string(now_time) + "," + to_string(iter->unique) + "," + to_string(iter->reqTime) + "," + 
+                to_string(iter->expectedOffTime) + to_string(iter->start) + to_string(iter->end) + "\n";
+            overTimeLimit++;
+        }
     }
+    ofs.close();
 	
 	print_line(outDir, logFile, string_format("Unserved: %d (%d over time limit)", (int)unserved.size(), overTimeLimit));
 }

@@ -337,7 +337,7 @@ void Vehicle::update(int nowTime, vector<Request>& newRequests, int idx) {
         bool bOffloaded = iterPsngr->scheduledOffTime <= nowTime;
         if (bNotYetOnboard) { // hasn't gotten on board
             iterPsngr->setStatus(Request::requestStatus::waiting);
-			if(iterPsngr->scheduledOnTime <= nowTime + default_time_step){
+			if((iterPsngr->scheduledOnTime <= nowTime + default_time_step) || (iterPsngr->allowedDelay > max_delay_sec)){
 				newPassengers.push_back(*iterPsngr);
 			} else{
             #pragma omp critical(pushbackreq)
@@ -387,11 +387,11 @@ void Vehicle::finish_route(int idx, int nowTime) {
         routes.open(outDir + "Routes/" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
         pickups.open(outDir + "Pickups/" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
         requestDistances.open(outDir + "Misc/" + "requestDistances.csv", std::ofstream::out | std::ofstream::app);
-        thisveh.open(outDir + "Routes/full_schedule" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
+      /*  thisveh.open(outDir + "Routes/full_schedule" + to_string(idx) + ".csv", std::ofstream::out | std::ofstream::app);
         for (auto iter = this->scheduledPath.begin(); iter != this->scheduledPath.end(); iter++) {
             thisveh << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "," + "\n";
         }
-        thisveh.close();
+        thisveh.close(); */
         for (auto iterPsngr = this->passengers.begin(); iterPsngr != this->passengers.end(); iterPsngr++) {
             these_served_reqs++;
             served_reqs++;

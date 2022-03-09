@@ -97,6 +97,9 @@ int main(int argc, char* argv[]) {
         travel_cnt = 0;
         these_reqs = 0;
         now_time += time_step;
+        if (now_time >= 60 * 60 * 24 - 1200) {
+            int x = 5;
+        }
         print_line(outDir, logFile, string_format("now_time: %d, time_step: %d, default_time_step: %d.", now_time, time_step, default_time_step));
 
         requests.clear();
@@ -239,29 +242,6 @@ int main(int argc, char* argv[]) {
         beforesolveUns = unserved;
 
         RTV->solve(env, vehicles, requests, unserved);
-        for (int i = 0; i < vehicles.size(); i++) {
-            if (vehicles[i].get_num_passengers() == 1 && beforesolveVeh[i].get_num_passengers() == 1){
-                if (vehicles[i].passengers[0].unique == beforesolveVeh[i].passengers[0].unique &&
-                    vehicles[i].passengers[0].scheduledOnTime == beforesolveVeh[i].passengers[0].scheduledOnTime &&
-                    vehicles[i].passengers[0].scheduledOffTime != beforesolveVeh[i].passengers[0].scheduledOffTime) {
-                    int x = 5;
-                    RTV->solve(env, beforesolveVeh, requests, unserved);
-                }
-            }
-        }
-
-        for (int i = 0; i < vehicles.size(); i++) {
-            if (vehicles[i].get_num_passengers() == 1 && vehicles[i].scheduledPath.size() > 0 &&
-                vehicles[i].passengers[0].scheduledOnTime == vehicles[i].passengers[0].expectedOffTime && 
-                vehicles[i].passengers[0].expectedOffTime != vehicles[i].passengers[0].scheduledOffTime) {
-                int x = 5;
-            }
-        }
-        for (int i = 0; i < vehicles.size(); i++) {
-            if (vehicles[i].get_num_passengers() > 0 && vehicles[i].scheduledPath.size() == 0) {
-                int x = 5;
-            }
-        }
 		elapsed_seconds = std::chrono::system_clock::now()-beforeTime;
 	print_ram(outDir,string_format("%d_before_solve", now_time));
         print_line(outDir,logFile,string_format("Solving time = %f", elapsed_seconds.count()));

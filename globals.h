@@ -32,11 +32,11 @@ extern int vehicle_depot;
 
 static int time_step = 300;
 static const int default_time_step = 300;
-static const int max_capacity = 2;
+static const int max_capacity = 1;
 static const int max_trip_size = 8;
 static const int fleet_size = 25000;
 static const double cars_needed_per_trip_per_30 = 2;
-static const int req_per_window = 1000;
+static const int req_per_window = 9999999;
 static const std::chrono::time_point startTime = std::chrono::system_clock::now();
 static std::chrono::time_point lastTimeCheck = std::chrono::system_clock::now();
 static const std::string baseDir = "C:/Code_Projects/RidePooling/";

@@ -1,8 +1,6 @@
 #pragma once
 
 class Request {
-private:
-
 public:
     enum class requestStatus { waiting=3, onBoard=4, droppedOff=5 };
     requestStatus status;

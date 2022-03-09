@@ -273,19 +273,12 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
         target.insert(make_pair(req->start,req->unique));
     }
 
-    Vehicle vCopy = vehicle;
-    vehicle = vCopy;
-    if (decided) {
-        if (vehicle.get_num_passengers() == 1 && vehicle.passengers[0].unique == 0) {
-            int x = 5;
-        }
-    }
-
     int beginTime = vehicle.getAvailableSince();
     vehicle.fixPassengerStatus(beginTime);
     for (int i = 0; i < numReqs; i++) {
         reqs[i]->fixStatus(beginTime);
     }
+    /*
     vector<Request::requestStatus> pre_statuses_veh(vehicle.get_num_passengers(),Request::requestStatus::waiting);
     vector<Request::requestStatus> pre_statuses_req(numReqs, Request::requestStatus::waiting);
     for (int i = 0; i < vehicle.get_num_passengers(); i++) {
@@ -294,7 +287,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
     for (int i = 0; i < numReqs; i++) {
         pre_statuses_req[i] = reqs[i]->getStatus();
     }
-
+*/
     // Insert vehicle's pre-existing passengers' destinations into temporary target set
     // Important note: set is auto-sorted using integer comparison, ie, order is pretty arbitrary
     vehicle.insert_targets(target, src_dst, beginTime);
@@ -317,7 +310,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
     dfs(vehicle, reqs, numReqs, target, src_dst, path, schedule, 
         occupancyStart, 0, beginTime, 0, 
         decided, observeReqTimeLimits, bFeasibilityCheck);
-
+/*
     if (!decided) {
         for (int i = 0; i < vehicle.get_num_passengers(); i++) {
             vehicle.passengers[i].setStatus(pre_statuses_veh[i]);
@@ -326,7 +319,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
             reqs[i]->setStatus(pre_statuses_req[i]);
         }
     }
-    
+*/
     if (ansCost != INF) {
         if (decided) {
             if (vehicle.get_num_passengers() == 1 && vehicle.passengers[0].unique == 0) {
@@ -338,6 +331,7 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                 }
             }
             beginTime += ansOffset;
+            int passedDist = 0;
             vector<int> order;
             vector<pair<int, int> > finalPath;
             int prevNode = vehicle.get_location();
@@ -348,10 +342,10 @@ int TravelHelper::travel(Vehicle& vehicle, Request *reqs[], int numReqs, bool de
                 if (m == 0 && ansPath[m].second.first == vehicle.get_location() && ansPath[m].first == vehicle.getAvailableSince() && !vehicle.getWasIdle()) {
                     continue;
                 }
-                int passedDist = 0;
+                /*
                 if (finalPath.size() > 0) {
                     beginTime = finalPath[finalPath.size() - 1].first;
-                }
+                }*/
                 int node = ansPath[m].second.first;
                 pair<int, int> fpResult;
                 order.clear();
