@@ -11,4 +11,4 @@ Dependencies:
 *   [OpenMP](https://www.openmp.org/)
 *   flat_set.hpp from [Boost C++ Libraries](https://www.boost.org/)
 *   [High Performance C++11 Serialization Library](https://github.com/jl2922/hps)
-
+*   [METIS - Serial Graph Partitioning and Fill-reducing Matrix Ordering](http://glaros.dtc.umn.edu/gkhome/metis/metis/overview)
