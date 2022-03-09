@@ -1,6 +1,6 @@
 # Ride Pooling Optimization
 
-Work in progress; additional documentation to come when the code is complete. 
+Work in progress.
 
 This code reimplements [Alonso-Mora et al. (2017)](https://doi.org/10.1073/pnas.1611675114), which optimizes a ridesourcing fleet's dispatch and use of ridesplitting, and extends it to consider the private costs of operation and the unpriced external costs of emissions and traffic.
 
