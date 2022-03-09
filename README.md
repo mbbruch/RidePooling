@@ -9,6 +9,6 @@ It uses (with permission) code from [MetaZuo/RideSharing](https://github.com/Met
 Dependencies:
 *   C++17 and the C++ Standard Template Library
 *   [OpenMP](https://www.openmp.org/)
-*   [Boost C++ Libraries](https://www.boost.org/) (flat_set.hpp)
+*   flat_set.hpp from [Boost C++ Libraries](https://www.boost.org/)
 *   [High Performance C++11 Serialization Library](https://github.com/jl2922/hps)
 
