@@ -1,81 +1,60 @@
 ﻿#pragma once
-
+#include<iostream>
 #include <vector>
 #include "util.h"
 #include "globals.h"
+#include "util.h"
+#include "Graph.h"
+#include "Node.h"
 using namespace std;
 
+struct coor { coor(double a = 0.0, double b = 0.0) :x(a), y(b) {}double x, y; };
 
-struct Graph// Undirected graph structure
+struct GPTree
 {
-	int n, m;//n points, m edges, points from 0 to n-1
-	int tot;
-	vector<int> id;//id[i] The real number of the i point in the sub-graph in the original graph
-	vector<int>head, list, next, cost;//Adjacency list
-	Graph();
-	~Graph();
+	std::string EdgeWeightsFile;
+	stMap dist_map;
+	Graph G;
+	int root;
+	vector<int>id_in_node;//The leaf node number where the real node is
+	vector<vector<int> >car_in_node;//Used to hang border method KNN, record the number of each node boarding
+	vector<coor>coordinate;
+	vector<int> node_areas;
+	vector<int> area_medoids;
+	int vehStartingPoint;
+	pairs_to_vec area_forecasts;
+	std::unordered_map<int, int> city_forecasts_max;
+	int node_tot, node_size;
+	Node *node;
+	double coor_dist(const coor& a, const coor& b);
+	double Euclidean_Dist(int S, int T);
+	void read();
+	void initialize(bool load_cache);
+	void init_dist_map();
+	void init_rand();
 	void save();
 	void load();
-	void add_D(int a, int b, int c);
-	void add(int a, int b, int c);
-	void init(int N, int M, int t = 1);
-	void clear();
-	void draw();
-	//图划分算法
-	vector<int>color;//01染色数组
-	vector<int>con;//连通性
-	vector<int> Split(Graph* G[], int nparts);
-	vector<int> Split_Naive(Graph& G1, Graph& G2);
-	int Split_Borders(int nparts);
-	struct state { 
-		int id; int len; int index; 
-		state(int a = 0, int b = 0, int c = 0);
-	}; //用于dijkstra的二元组
+	void write();
+	void add_border(int x, int id, int id2);
+	void make_border(int x, const vector<int>& color);
+	int partition_root(int x = 1);
+	void build(int x = 1, int f = 1);
+	void build_dist_part1(int x = 1);
+	void build_dist_part2(int x = 1);
+	void build_border_in_father_son();
 
-	struct cmp { bool operator()(const state& a, const state& b);
-	};//重载priority_queue的比较函数
-	void dijkstra(int S, vector<int>& dist);
-	vector<int> KNN(int S, int K, vector<int>T);
-	vector<int> find_path(int S, int T);
-	int real_node();
-
-	//给定起点集合S，处理到每个结点的前K短路长度以及起点编号在list中的编号
-	vector<vector<int> >K_Near_Dist, K_Near_Order;
-	void KNN_init(const vector<int>& S, int K);
-	vector<int>* KNN_Dijkstra(int S);
-
-	friend void initialize(bool load_cache, map_of_pairs& dist);
-	friend int find_path(int S, int T, vector<int>& order);
-	friend int get_dist(int S, int T, const map_of_pairs& dist, bool simplestCheck);
-	friend void init_dist_map(map_of_pairs& dist_map);
-	friend void reinitialize_dist_map(std::set<std::pair<int, int>>& ongoingLocs,
-		set<int>& allToAll1,
-		set<int>& allToAll2,
-		map_of_pairs& mop);
+	void push_borders_up(int x, vector<int>& dist1, vector<int>& dist2, int type);
+	void push_borders_up_cache(int x, int bound = INF);
+	void push_borders_down_cache(int x, int y, int bound = INF);
+	void push_borders_brother_cache(int x, int y, int bound = INF);
+	void push_borders_up_path(int x, vector<int>& dist1, vector<int>& dist2);
+	int find_LCA(int x, int y);
+	std::pair<int,int> search(int S, int T);
+	std::pair<int, int> get_dist(int S, int T);
+	std::pair<int, int> search_cache(int S, int T, int bound = INF);
+	std::pair<int, int> find_path(const int S, const int T, vector<int>& order);
+	int real_border_number(int x);
+	const void find_path_border(int x, int S, int T, vector<int>& v, int rev);
 };
 
-	extern void initialize(bool load_cache, map_of_pairs& dist);
-	extern int find_path(int S, int T, vector<int>& order);
-	extern int get_dist(int S, int T, const map_of_pairs& dist, bool simplestCheck=false);
-	extern void init_dist_map(map_of_pairs& dist_map);
-	extern void reinitialize_dist_map(set<pair<int, int>>& ongoingLocs,
-		set<int>& allToAll,
-		map_of_pairs& mop);
-
-struct Heap//双指针大根堆
-{
-	Heap();
-	int n;
-	vector<int>id, iid, a;//id[i]表示编号为i的元素在a中的位置，iid[i]表示a[i]的id（id:[0~n-1],a/iid:[1~n]）
-	void clear();
-	void swap_(int x, int y);
-	void up(int x);
-	void down(int x);
-	int top();
-	int top_id();
-	int size();
-	void change(int x, int num);
-	void add(int x, int num);
-	void push(int num);
-	void draw();
-};
+extern GPTree treeCost;

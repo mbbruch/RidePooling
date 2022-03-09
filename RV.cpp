@@ -1,93 +1,194 @@
 #include <map>
 #include "util.h"
 #include <vector>
+#include <tuple>
+#include <array>
 #include <omp.h>
 #include <set>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include "hps_src/hps.h"
 #include "util.h"
 #include "travel.h"
 #include "globals.h"
 #include "RV.h"
 #include "GPtree.h"
-using namespace std;
+using namespace std; 
 
-void RVGraph::add_edge_vehicle_req(int vehicle, int req, int cost) {
-    car_req_cost[vehicle][req] = cost;
-    req_cost_car[req].push_back(make_pair(cost, vehicle));
-    req_car.insert(make_pair(req, vehicle));
-    entries++;
-}
-
-void RVGraph::prune() {
-    for (auto it = req_cost_car.begin(); it != req_cost_car.end(); it++) {
-        sort(it->second.begin(), it->second.end());
-        if (it->second.size() <= max_v_per_req) {
-            continue;
-        }
-        for (int idx = max_v_per_req; idx < it->second.size(); idx++) {
-            int vId = it->second[idx].second;
-            car_req_cost[vId].erase(it->first);
-            if (car_req_cost[vId].empty()) {
-                car_req_cost.erase(vId);
-            }
-        }
-    }
-}
-
-RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests, map_of_pairs& dist) {
+RVGraph::RVGraph(vector<Vehicle>& vehicles, vector<Request>& requests) {
     /* Get arc costs and add arcs for request-vehicle matches*/
     int connected = 0;
     int disconnected = 0;
     int j = 0;
-    entries = 0;
     const int nVeh = vehicles.size();
     const int nReq = requests.size();
-    #pragma omp parallel for default(none) private(j) shared(vehicles, requests, dist)
+    req_nearest_car_node = std::vector<int>(nReq, -1);
+	auto condition = [](const std::array<int, 3>& o) { return o[0] != -1; };
+	
+	int numAvailable = std::count_if(vehicles.begin(), vehicles.end(), [](const Vehicle& v) {return v.available; });
+    vector<int> availableIdxes(numAvailable, -1);
+	int thisCounter = 0;
+	for (int i = 0; i < vehicles.size(); i++) {
+		if (vehicles[i].available) {
+			availableIdxes[thisCounter++] = i;
+		}
+	}
+
+	std::map<int, int> psgrCounter;
+	std::map<int, int> waitingCounter;
+	std::map<int, int> onBoardCounter;
+	std::map<int, int> areaCounter;
+	std::map<int, int> startOccupancy;
+	std::map<int, int> endOccupancy;
+	
+	for (int i = 0; i < numAvailable; i++) {
+		int thisIdx = availableIdxes[i];
+		int agenda = vehicles[thisIdx].get_num_passengers();
+		int thisArea = treeCost.node_areas[vehicles[thisIdx].get_location() - 1];
+		int onBoardCnt = 0;
+		int waitingCnt = 0;
+		for (int j = 0; j < vehicles[thisIdx].passengers.size(); j++) {
+			if (vehicles[thisIdx].passengers[j].getStatus() == Request::requestStatus::waiting) {
+				waitingCnt++;
+			}
+			else if (vehicles[thisIdx].passengers[j].getStatus() == Request::requestStatus::onBoard) {
+				onBoardCnt++;
+			}
+		}
+		psgrCounter[agenda]++;
+		waitingCounter[waitingCnt]++;
+		onBoardCounter[onBoardCnt]++;
+		areaCounter[thisArea]++;
+		startOccupancy[vehicles[thisIdx].getOccupancyAt(now_time)]++;
+		endOccupancy[vehicles[thisIdx].getOccupancyAt(now_time + 300)]++;
+	}
+    std::ofstream ofs;
+	ofs.open(outDir + "VehicleStatuses/psgrCounter.csv", std::ofstream::out | std::ofstream::app);
+	for (auto iter = psgrCounter.begin(); iter != psgrCounter.end(); iter++) {
+		ofs << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "\n";
+	}
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/waitingCounter.csv", std::ofstream::out | std::ofstream::app);
+	for (auto iter = waitingCounter.begin(); iter != waitingCounter.end(); iter++) {
+		ofs << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "\n";
+	}
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/onBoardCounter.csv", std::ofstream::out | std::ofstream::app);
+	for (auto iter = onBoardCounter.begin(); iter != onBoardCounter.end(); iter++) {
+		ofs << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "\n";
+	}
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/areaCounter.csv", std::ofstream::out | std::ofstream::app);
+	for (auto iter = areaCounter.begin(); iter != areaCounter.end(); iter++) {
+		ofs << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "\n";
+	}
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/startOccupancy.csv", std::ofstream::out | std::ofstream::app);
+	for (auto iter = startOccupancy.begin(); iter != startOccupancy.end(); iter++) {
+		ofs << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "\n";
+	}
+	ofs.close();
+	ofs.open(outDir + "VehicleStatuses/endOccupancy.csv", std::ofstream::out | std::ofstream::app);
+	for (auto iter = endOccupancy.begin(); iter != endOccupancy.end(); iter++) {
+		ofs << to_string(now_time) + "," + to_string(iter->first) + "," + to_string(iter->second) + "\n";
+	}
+	ofs.close();
+	
+	int pre_size = numAvailable * nReq;
+	print_line(outDir, logFile,  string_format("RV step: %d cars, %d reqs ", numAvailable, nReq));
+	std::vector<std::tuple<int, int, int>> cost_r_v(numAvailable * nReq, std::tuple<int, int, int>(-1, -1, -1));
+#pragma omp parallel for default(none) num_threads(omp_get_max_threads()) private(j) schedule(static) shared(availableIdxes, numAvailable, cost_r_v, vehicles, condition, outDir, logFile, requests, treeCost)
     for (j = 0; j < nReq; j++) {
-        int closestDist = -1;
+        int lowestDist = -1;
         int closestNode = -1;
-                Request thisReq = requests[j];
-				Request* reqs[1];
-                reqs[0] = &thisReq;
-        for (int i = 0; i < nVeh; i++) {
-            if (vehicles[i].isAvailable()) {
-                Vehicle vehicleCopy = vehicles[i];
-                TravelHelper th;
-                int cost = th.travel(vehicleCopy, reqs, 1, dist, false);
-                if (cost >= 0) {
-                    int distance = get_dist(vehicleCopy.get_location(), thisReq.start, dist);
-                    if (closestDist < 0 || distance < closestDist) {
-                        closestDist = distance;
-                        closestNode = vehicleCopy.get_location();
-                    }
-                    #pragma omp critical (addevr)
-                    add_edge_vehicle_req(i, j, th.getTravelCost());
-                }
-            }
+        Request thisReq = requests[j];
+        Request* reqs[1];
+        reqs[0] = &thisReq;
+		TravelHelper th;
+        for (int i = 0; i < numAvailable; i++) {
+			int thisIdx = availableIdxes[i];
+			Vehicle vCopy = vehicles[thisIdx];
+			int cost = th.travel(vCopy, reqs, 1, false);
+			if (cost >= 0) {
+			if (0 != lowestDist) {
+					if (vCopy.getAvailableSince() < 0) {
+							lowestDist = 0;
+				}
+					else {
+						int dist = treeCost.get_dist(vehicles[thisIdx].get_location(), thisReq.start).second;
+						if (lowestDist < 0 || dist < lowestDist) {
+							lowestDist = dist;
+							closestNode = vehicles[thisIdx].get_location();
+					}
+				}
+			}
+				int thisIdxInVRC = i * nReq + j;
+            std::get<0>(cost_r_v[thisIdxInVRC]) = cost;
+            std::get<1>(cost_r_v[thisIdxInVRC]) = j;
+            std::get<2>(cost_r_v[thisIdxInVRC]) = thisIdx;
+			}
         }
-        if (closestDist >= 0) {
-            #pragma omp critical (addClosestNode)
-            req_nearest_car_node.insert(make_pair(j, closestNode));
+        if (lowestDist >= 0) {
+            req_nearest_car_node[j] = closestNode;
+        }
     }
-    }
+    cost_r_v.erase(std::remove_if(cost_r_v.begin(), cost_r_v.end(),
+		[](const std::tuple<int, int, int>& o) { return std::get<0>(o) == -1; }),
+            cost_r_v.end());
+			
+	int pre_size_2 = cost_r_v.size();
+    cost_r_v.shrink_to_fit();
+    std::sort(cost_r_v.begin(), cost_r_v.end());
 
-    req_car.rehash(entries);
-    req_nearest_car_node.rehash(req_cost_car.size());
-    /*
-    map<bool, int> carCounts;
-    for (auto it = carConnections.begin(); it != carConnections.end(); it++) {
-        carCounts[it->second > 0]++;
+    std::vector<int> rAssignments(nReq, -1);
+    std::vector<int> vAssignments(nVeh, -1);
+    std::vector<int> rAssignmentCounts(nReq, 0);
+    std::vector<int> vAssignmentCounts(nVeh, 0);
+    int assignableCnt = 0;
+    for (int i = 0; i < cost_r_v.size(); i++) {
+        int rIdx = std::get<1>(cost_r_v[i]);
+        int vIdx = std::get<2>(cost_r_v[i]);
+        if (vAssignmentCounts[vIdx] >= min_req_per_v && rAssignmentCounts[rIdx] >= max_v_per_req && (-1 != vAssignments[vIdx] || -1 != rAssignments[rIdx])) {
+            std::get<0>(cost_r_v[i]) = -1;
+            continue;
+        }
+        vAssignmentCounts[vIdx]++;
+        rAssignmentCounts[rIdx]++;
+        if (-1 == vAssignments[vIdx] && -1 == rAssignments[rIdx]) {
+            vAssignments[vIdx] = rIdx;
+            rAssignments[rIdx] = vIdx;
+            assignableCnt++;
+        }
     }
-   TODO fix map<bool, int> requestsCounts;
-    for (auto it = requestConnections.begin(); it != requestConnections.end(); it++) {
-        requestsCounts[it->second > 0]++;
-    }
+    std::vector<int>().swap(rAssignments);
+    std::vector<int>().swap(vAssignments);
+    cost_r_v.erase(std::remove_if(cost_r_v.begin(), cost_r_v.end(),
+        [](const std::tuple<int, int, int>& o) { return std::get<0>(o) == -1; }),
+        cost_r_v.end());
 
-    printf("Connected requests: %d, disconnected: %d\n", requestsCounts[true], requestsCounts[false]);
-    printf("Connected cars: %d, disconnected: %d\n", carCounts[true], carCounts[false]);
-    disconnectedCars = carCounts[false];
-*/
-    // prune(); TODO "spread out" pruned trips better so that if vehicles all start at the same place, the same cars don't all get "kept"
+    cost_r_v.shrink_to_fit();
+    std::sort(cost_r_v.begin(), cost_r_v.end(),
+        [](const std::tuple<int, int, int>& a, const std::tuple<int, int, int>& b) {
+            return std::get<1>(a) < std::get<1>(b) || (std::get<1>(a) == std::get<1>(b) && std::get<2>(a) < std::get<2>(b));
+    }); //orders ascending by req then veh
+
+    int post_size = cost_r_v.size();
+    print_line(outDir, logFile, string_format("RV graph shrunk from %d to %d to %d.", pre_size, pre_size_2, post_size));
+			
+    for (int i = 0; i < vAssignmentCounts.size(); i++) {
+        if (vAssignmentCounts[i] > 0) {
+			car_req_cost[i].reserve(vAssignmentCounts[i]);
+		}
+	}
+    for (int i = 0; i < cost_r_v.size(); i++) {
+        car_req_cost[std::get<2>(cost_r_v[i])].push_back(make_pair(std::get<1>(cost_r_v[i]), std::get<0>(cost_r_v[i]))); //vehicle, req, cost
+    }
 }
 
 bool RVGraph::has_vehicle(int vehicle) {

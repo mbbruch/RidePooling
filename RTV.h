@@ -3,7 +3,6 @@
 #include <vector>
 #include <map>
 #include <set>
-#include "util.h"
 #include <unordered_set>
 #include <random>
 #include "RV.h"
@@ -18,20 +17,19 @@ class RTVGraph {
     public:
         uos requests;
         vector<int> dependentTrips;
-        bool ruledOut;
-
         tripCandidate(const uos& reqs) {
             requests = reqs;
-            ruledOut = false;
         };
+
         tripCandidate(const tripCandidate& toCopy) {
             requests = toCopy.requests;
             dependentTrips = toCopy.dependentTrips;
-            ruledOut = toCopy.ruledOut;
         };
     };
 
-    inline static vector<vector<tripCandidate>> allPotentialTrips;
+	typedef std::vector<tripCandidate> tripsVec;
+
+    inline static std::vector<tripsVec> allPotentialTrips;
 
 
     /* WHAT WE NEED:
@@ -53,14 +51,7 @@ class RTVGraph {
 
     map<uos, int> trip_tIdx; // trip -> tIdx, reverse of vector "trips"
 
-    class TIdxComparable {
-    public:
-        static RTVGraph* rtvGraph;
-        int tIdx;
-
-        TIdxComparable(int tIdx) : tIdx(tIdx) {}
-        bool operator <(const TIdxComparable& other) const;
-    };
+    typedef int TIdxComparable;
 
     //---- these are edges of RTV graph ----
     map<int, set<int> > rId_tIdxes;
@@ -73,14 +64,17 @@ class RTVGraph {
 
     int getTIdx(const uos& trip);
 
-    void add_edge_trip_vehicle(uos& reqsInTrip, int vIdx, int cost);
-    void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles, map_of_pairs& dist);
+    void add_edge_trip_vehicle(const uos& reqsInTrip, int vIdx, int cost);
+    void add_edge_trip_vehicle(int tIdx, int vIdx, int cost);
+    void build_potential_trips(RVGraph* rvGraph, vector<Request>& requests, vector<Vehicle>& vehicles);
+    void build_single_vehicles(vector<Request>& requests, vector<Vehicle>& vehicles, 
+        const map<int, int>& vehIDToVehIdx, int tripSize,
+        const unordered_map<int, int>& adjustedTripIdxes, std::vector<int>& addedTrips,
+        const std::vector<std::pair<int, uos>>& prevInclusions, std::vector<std::pair<int, uos>>& theseInclusions);
 
-    void build_single_vehicle(int vehicleId, int vIdx, vector<Vehicle>& vehicles, 
-        RVGraph* rvGraph, vector<Request>& requests,
-        map_of_pairs& dist);
-
-    void sort_edges();
+    void serialize_current_combos();
+    void deserialize_current_combos();
+    void deserialize_valid_trips();
 
     void greedy_assign_same_trip_size(
 	    vector<vector<pair<int, pair<int,int>> >::iterator>& edgeIters,
@@ -88,22 +82,23 @@ class RTVGraph {
         vector<int>& tIdxes,
         set<int>& assignedRIds, set<int>& assignedVIdxes,
         GRBVar** epsilon,
-        std::map<int, map<int, int>>& lookupRtoT
+        std::map<int, map<int, int>>& lookupRtoT,
+		unordered_map<int,int>& validTripReverseLookup
     );
 
 public:
-    RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles,
-        vector<Request>& requests, map_of_pairs& dist);
+    RTVGraph(RVGraph* rvGraph, vector<Vehicle>& vehicles, vector<Request>& requests);
 
-    void rebalance(GRBEnv* env,
-        vector<Vehicle>& vehicles, vector<Request>& unserved,
-        map_of_pairs& dist);
-
+    void rebalance(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
+    void static update_unserved_from_rebalancing(vector<Request>& unserved, uos& newlyServed);
+    void static rebalance_for_pruning_fix(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
+    void static rebalance_for_finishing_cars(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved);
+    void static rebalance_online_offline(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, int now_time);
+    void static rebalance_for_demand_forecasts(GRBEnv* env, vector<Vehicle>& vehicles, vector<Request>& unserved, int nowTime, bool bEquityVersion = false);
 	void prune();
     void solve(GRBEnv* env,
         vector<Vehicle>& vehicles, vector<Request>& requests,
-        vector<Request>& unservedCollector,
-        map_of_pairs& dist);
+        vector<Request>& unservedCollector);
 
     friend bool equal_to_sub(vector<int>& compared, vector<int>& origin, int excludeIdx);
 
